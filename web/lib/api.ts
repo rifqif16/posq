@@ -1,5 +1,3 @@
-// Klien API auth. Access token hanya disimpan di memori (bukan localStorage);
-// sesi dipulihkan lewat refresh token di cookie HttpOnly.
 import type { FieldErrors, RegisterInput } from "./validate";
 
 export interface Profile {
@@ -81,8 +79,16 @@ export async function login(email: string, password: string): Promise<Profile> {
   );
 }
 
-// Memulihkan sesi dari cookie refresh; mengembalikan null bila belum login.
-export async function restoreSession(): Promise<Profile | null> {
+let inflightRefresh: Promise<Profile | null> | null = null;
+
+export function restoreSession(): Promise<Profile | null> {
+  inflightRefresh ??= refreshOnce().finally(() => {
+    inflightRefresh = null;
+  });
+  return inflightRefresh;
+}
+
+async function refreshOnce(): Promise<Profile | null> {
   try {
     return adopt(
       await request<SessionResponse>("/v1/auth/refresh", { method: "POST" }),
@@ -90,6 +96,24 @@ export async function restoreSession(): Promise<Profile | null> {
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return null;
     throw e;
+  }
+}
+
+export async function authedRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  try {
+    return await request<T>(path, init);
+  } catch (e) {
+    if (
+      !(e instanceof ApiError) ||
+      e.status !== 401 ||
+      e.code !== "UNAUTHORIZED"
+    )
+      throw e;
+    if (!(await restoreSession())) throw e;
+    return request<T>(path, init);
   }
 }
 

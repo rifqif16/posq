@@ -1,4 +1,4 @@
-// Package app merangkai router HTTP dan dependensi semua modul.
+// Package app merangkai router HTTP dari seluruh modul.
 package app
 
 import (
@@ -13,6 +13,7 @@ import (
 
 	"github.com/rifqif16/posq/api/internal/auth"
 	"github.com/rifqif16/posq/api/internal/auth/application"
+	"github.com/rifqif16/posq/api/internal/catalog"
 	"github.com/rifqif16/posq/api/internal/platform/config"
 	"github.com/rifqif16/posq/api/internal/platform/httpx"
 )
@@ -21,7 +22,7 @@ type Deps struct {
 	Pool   *pgxpool.Pool
 	Config config.Config
 	Logger *slog.Logger
-	Hasher application.PasswordHasher
+	Hasher application.PasswordHasher // opsional (test)
 }
 
 func NewRouter(d Deps) (http.Handler, error) {
@@ -29,13 +30,17 @@ func NewRouter(d Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	catalogHandler := catalog.New(catalog.Deps{Pool: d.Pool, Logger: d.Logger})
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, httpx.RequestLogger(d.Logger), httpx.SecurityHeaders)
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	r.Get("/healthz", healthz(d.Pool))
-	r.Route("/v1", authHandler.Mount)
+	r.Route("/v1", func(r chi.Router) {
+		authHandler.Mount(r)
+		catalogHandler.Mount(r, authHandler.Require)
+	})
 	return r, nil
 }
 
