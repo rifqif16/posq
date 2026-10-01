@@ -4,9 +4,12 @@ import { useState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/Field";
 import { type Category, buildTree } from "@/lib/category";
 import {
+  MAX_VARIANTS,
   type ProductForm,
   type ProductRequest,
-  mapServerFields,
+  type VariantForm,
+  emptyVariant,
+  makeDefault,
   toRequest,
   validateForm,
 } from "@/lib/product";
@@ -27,6 +30,8 @@ interface Props {
 
 const inputClass =
   "block min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-base outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/30";
+const secondaryButton =
+  "min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100";
 
 export function ProductFormView({
   initial,
@@ -43,6 +48,25 @@ export function ProductFormView({
 
   const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+  const setVariant = (index: number, patch: Partial<VariantForm>) =>
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.map((v, i) =>
+        i === index ? { ...v, ...patch } : v,
+      ),
+    }));
+
+  function toggleVariants(on: boolean) {
+    setForm((f) => ({
+      ...f,
+      has_variants: on,
+      // Mode bervarian butuh minimal 2 varian; tambahkan satu kosong bila baru dinyalakan.
+      variants:
+        on && f.variants.length < 2
+          ? [...f.variants, emptyVariant()]
+          : f.variants,
+    }));
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,7 +79,7 @@ export function ProductFormView({
     const failure = await onSubmit(toRequest(form));
     setPending(false);
     if (failure) {
-      setErrors(mapServerFields(failure.fields));
+      setErrors(failure.fields);
       setFormError(failure.message);
     }
   }
@@ -79,63 +103,37 @@ export function ProductFormView({
         required
       />
 
-      <div className="space-y-1">
-        <label
-          htmlFor="category_id"
-          className="block text-sm font-medium text-stone-700"
-        >
-          Kategori
-        </label>
-        <select
-          id="category_id"
-          value={form.category_id}
-          onChange={(e) => set("category_id", e.target.value)}
-          className={inputClass}
-        >
-          <option value="">Tanpa kategori</option>
-          {tree.map((node) => (
-            <optgroup key={node.id} label={node.name}>
-              <option value={node.id}>{node.name}</option>
-              {node.children.map((c) => (
-                <option
-                  key={c.id}
-                  value={c.id}
-                >{`${node.name} › ${c.name}`}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {errors.category_id && (
-          <p className="text-sm text-red-700">{errors.category_id}</p>
-        )}
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          id="sell_price"
-          label="Harga jual (Rp)"
-          inputMode="numeric"
-          value={form.sell_price}
-          onChange={(e) => set("sell_price", e.target.value)}
-          error={errors.sell_price}
-          required
-        />
-        <Field
-          id="cost_price"
-          label="Harga beli (Rp)"
-          inputMode="numeric"
-          value={form.cost_price}
-          onChange={(e) => set("cost_price", e.target.value)}
-          error={errors.cost_price}
-        />
-        <Field
-          id="sku"
-          label="SKU"
-          placeholder="Kosongkan untuk otomatis"
-          value={form.sku}
-          onChange={(e) => set("sku", e.target.value)}
-          error={errors.sku}
-        />
+        <div className="space-y-1">
+          <label
+            htmlFor="category_id"
+            className="block text-sm font-medium text-stone-700"
+          >
+            Kategori
+          </label>
+          <select
+            id="category_id"
+            value={form.category_id}
+            onChange={(e) => set("category_id", e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Tanpa kategori</option>
+            {tree.map((node) => (
+              <optgroup key={node.id} label={node.name}>
+                <option value={node.id}>{node.name}</option>
+                {node.children.map((c) => (
+                  <option
+                    key={c.id}
+                    value={c.id}
+                  >{`${node.name} › ${c.name}`}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {errors.category_id && (
+            <p className="text-sm text-red-700">{errors.category_id}</p>
+          )}
+        </div>
         <Field
           id="kitchen_station"
           label="Station dapur"
@@ -146,33 +144,111 @@ export function ProductFormView({
         />
       </div>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="barcodes"
-          className="block text-sm font-medium text-stone-700"
-        >
-          Barcode (satu per baris atau pisahkan koma)
-        </label>
-        <textarea
-          id="barcodes"
-          rows={3}
-          value={form.barcodes}
-          onChange={(e) => set("barcodes", e.target.value)}
-          aria-invalid={errors.barcodes ? true : undefined}
-          className={`${inputClass} py-2`}
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={form.has_variants}
+          onChange={(e) => toggleVariants(e.target.checked)}
+          className="size-5"
         />
-        {errors.barcodes && (
-          <p className="text-sm text-red-700">{errors.barcodes}</p>
-        )}
-      </div>
+        Produk punya varian (mis. ukuran S/M/L)
+      </label>
+
+      {!form.has_variants ? (
+        <>
+          <VariantFields
+            index={0}
+            v={form.variants[0]}
+            errors={errors}
+            showIdentity={false}
+            onChange={(p) => setVariant(0, p)}
+          />
+          {form.variants.length > 1 && (
+            <p className="text-sm text-amber-800">
+              Varian lainnya akan dihapus saat disimpan. Nyalakan opsi varian
+              untuk mempertahankannya.
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="space-y-3">
+          {errors.variants && (
+            <p role="alert" className="text-sm text-red-700">
+              {errors.variants}
+            </p>
+          )}
+          {form.variants.map((v, i) => (
+            <div
+              key={v.key}
+              className="space-y-3 rounded-xl border border-stone-200 bg-white p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Varian {i + 1}
+                  {i === 0 && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-900">
+                      Default
+                    </span>
+                  )}
+                </p>
+                <div className="flex gap-2">
+                  {i > 0 && (
+                    <button
+                      type="button"
+                      className={secondaryButton}
+                      onClick={() =>
+                        set("variants", makeDefault(form.variants, i))
+                      }
+                    >
+                      Jadikan default
+                    </button>
+                  )}
+                  {form.variants.length > 2 && (
+                    <button
+                      type="button"
+                      className="min-h-11 rounded-lg border border-red-300 px-3 text-sm text-red-800 hover:bg-red-50"
+                      onClick={() =>
+                        set(
+                          "variants",
+                          form.variants.filter((_, j) => j !== i),
+                        )
+                      }
+                    >
+                      Hapus varian
+                    </button>
+                  )}
+                </div>
+              </div>
+              <VariantFields
+                index={i}
+                v={v}
+                errors={errors}
+                showIdentity
+                onChange={(p) => setVariant(i, p)}
+              />
+            </div>
+          ))}
+          {form.variants.length < MAX_VARIANTS && (
+            <button
+              type="button"
+              className={`${secondaryButton} w-full`}
+              onClick={() =>
+                set("variants", [...form.variants, emptyVariant()])
+              }
+            >
+              Tambah varian
+            </button>
+          )}
+        </div>
+      )}
 
       <fieldset className="flex flex-wrap gap-x-6 gap-y-2">
-        <legend className="sr-only">Pengaturan</legend>
+        <legend className="sr-only">Pengaturan produk</legend>
         {(
           [
             ["taxable", "Kena pajak"],
             ["track_stock", "Lacak stok"],
-            ["is_active", "Aktif"],
+            ["is_active", "Produk aktif"],
           ] as const
         ).map(([key, label]) => (
           <label key={key} className="flex min-h-11 items-center gap-2 text-sm">
@@ -202,5 +278,96 @@ export function ProductFormView({
         )}
       </div>
     </form>
+  );
+}
+
+interface VariantFieldsProps {
+  index: number;
+  v: VariantForm;
+  errors: FieldErrors;
+  showIdentity: boolean; // nama varian dan status aktif hanya pada mode bervarian
+  onChange: (patch: Partial<VariantForm>) => void;
+}
+
+function VariantFields({
+  index,
+  v,
+  errors,
+  showIdentity,
+  onChange,
+}: VariantFieldsProps) {
+  const err = (field: string) => errors[`variants[${index}].${field}`];
+  const id = (field: string) => `${v.key}-${field}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {showIdentity && (
+          <Field
+            id={id("name")}
+            label="Nama varian"
+            value={v.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            error={err("name")}
+            required
+          />
+        )}
+        <Field
+          id={id("sell_price")}
+          label="Harga jual (Rp)"
+          inputMode="numeric"
+          value={v.sell_price}
+          onChange={(e) => onChange({ sell_price: e.target.value })}
+          error={err("sell_price")}
+          required
+        />
+        <Field
+          id={id("cost_price")}
+          label="Harga beli (Rp)"
+          inputMode="numeric"
+          value={v.cost_price}
+          onChange={(e) => onChange({ cost_price: e.target.value })}
+          error={err("cost_price")}
+        />
+        <Field
+          id={id("sku")}
+          label="SKU"
+          placeholder="Kosongkan untuk otomatis"
+          value={v.sku}
+          onChange={(e) => onChange({ sku: e.target.value })}
+          error={err("sku")}
+        />
+      </div>
+      <div className="space-y-1">
+        <label
+          htmlFor={id("barcodes")}
+          className="block text-sm font-medium text-stone-700"
+        >
+          Barcode (satu per baris atau pisahkan koma)
+        </label>
+        <textarea
+          id={id("barcodes")}
+          rows={2}
+          value={v.barcodes}
+          onChange={(e) => onChange({ barcodes: e.target.value })}
+          aria-invalid={err("barcodes") ? true : undefined}
+          className={`${inputClass} py-2`}
+        />
+        {err("barcodes") && (
+          <p className="text-sm text-red-700">{err("barcodes")}</p>
+        )}
+      </div>
+      {showIdentity && (
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={v.is_active}
+            onChange={(e) => onChange({ is_active: e.target.checked })}
+            className="size-5"
+          />
+          Varian aktif
+        </label>
+      )}
+    </div>
   );
 }

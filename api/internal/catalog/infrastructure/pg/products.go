@@ -110,7 +110,7 @@ func attachVariants(ctx context.Context, tx pgx.Tx, products []domain.Product) e
 		ids[i] = p.ID.String()
 		index[p.ID] = i
 	}
-	rows, err := tx.Query(ctx, `SELECT v.id, v.product_id, v.name, v.sku, v.cost_price, v.sell_price, v.is_default
+	rows, err := tx.Query(ctx, `SELECT v.id, v.product_id, v.name, v.sku, v.cost_price, v.sell_price, v.is_default, v.is_active
 		FROM product_variants v WHERE v.product_id = ANY($1::uuid[]) AND v.deleted_at IS NULL
 		ORDER BY v.is_default DESC, v.id`, ids)
 	if err != nil {
@@ -123,7 +123,7 @@ func attachVariants(ctx context.Context, tx pgx.Tx, products []domain.Product) e
 	for rows.Next() {
 		var v domain.Variant
 		var productID uuid.UUID
-		if err := rows.Scan(&v.ID, &productID, &v.Name, &v.SKU, &v.CostPrice, &v.SellPrice, &v.IsDefault); err != nil {
+		if err := rows.Scan(&v.ID, &productID, &v.Name, &v.SKU, &v.CostPrice, &v.SellPrice, &v.IsDefault, &v.IsActive); err != nil {
 			return fmt.Errorf("scan varian: %w", err)
 		}
 		v.Barcodes = []string{}
@@ -180,27 +180,34 @@ func (r *Repository) GetProduct(ctx context.Context, tenantID, id uuid.UUID) (do
 	return out, err
 }
 
+func insertVariant(ctx context.Context, tx pgx.Tx, a application.Actor, productID uuid.UUID, v domain.VariantInput, isDefault bool, now time.Time) error {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO product_variants (id, tenant_id, product_id, name, sku, cost_price, sell_price, is_default, is_active, created_by, updated_by, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$11)`,
+		v.NewID, a.TenantID, productID, v.Name, v.SKU, v.CostPrice, v.SellPrice, isDefault, v.IsActive, a.UserID, now); err != nil {
+		return err
+	}
+	return insertBarcodes(ctx, tx, a.TenantID, v.NewID, v.Barcodes)
+}
+
 func (r *Repository) CreateProduct(ctx context.Context, a application.Actor, np application.NewProduct, now time.Time) (domain.Product, error) {
 	var out domain.Product
 	err := database.WithTenantTx(ctx, r.pool, a.TenantID, func(tx pgx.Tx) error {
-		in, v := np.Input, np.Input.Variants[0]
+		in := np.Input
 		if err := checkCategory(ctx, tx, in.CategoryID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO products (id, tenant_id, name, type, category_id, taxable, track_stock, kitchen_station, is_active, created_by, updated_by, created_at, updated_at)
-			VALUES ($1,$2,$3,'simple',$4,$5,$6,$7,$8,$9,$9,$10,$10)`,
-			np.ID, a.TenantID, in.Name, in.CategoryID, in.Taxable, in.TrackStock, nullable(in.KitchenStation), in.IsActive, a.UserID, now); err != nil {
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$11)`,
+			np.ID, a.TenantID, in.Name, domain.ProductType(len(in.Variants)), in.CategoryID, in.Taxable, in.TrackStock,
+			nullable(in.KitchenStation), in.IsActive, a.UserID, now); err != nil {
 			return fmt.Errorf("insert produk: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO product_variants (id, tenant_id, product_id, name, sku, cost_price, sell_price, is_default, created_by, updated_by, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$8,$9,$9)`,
-			np.VariantID, a.TenantID, np.ID, v.Name, v.SKU, v.CostPrice, v.SellPrice, a.UserID, now); err != nil {
-			return err
-		}
-		if err := insertBarcodes(ctx, tx, a.TenantID, np.VariantID, v.Barcodes); err != nil {
-			return err
+		for i, v := range in.Variants {
+			if err := insertVariant(ctx, tx, a, np.ID, v, i == 0, now); err != nil {
+				return err
+			}
 		}
 		var err error
 		out, err = getProduct(ctx, tx, np.ID)
@@ -231,42 +238,115 @@ func (r *Repository) UpdateProduct(ctx context.Context, a application.Actor, id 
 	return out, mapProductError(err)
 }
 
-func applyUpdate(ctx context.Context, tx pgx.Tx, a application.Actor, id uuid.UUID, in domain.ProductInput, now time.Time, out *domain.Product) error {
-	v := in.Variants[0]
-	var variantID uuid.UUID
-	var oldCost, oldSell int64
-	err := tx.QueryRow(ctx, `SELECT id, cost_price, sell_price FROM product_variants
-		WHERE product_id = $1 AND is_default AND deleted_at IS NULL FOR UPDATE`, id).Scan(&variantID, &oldCost, &oldSell)
+type variantState struct {
+	sku              string
+	costPrice, price int64
+}
+
+func loadVariantStates(ctx context.Context, tx pgx.Tx, productID uuid.UUID) (map[uuid.UUID]variantState, error) {
+	rows, err := tx.Query(ctx, `SELECT id, sku, cost_price, sell_price FROM product_variants
+		WHERE product_id = $1 AND deleted_at IS NULL FOR UPDATE`, productID)
 	if err != nil {
-		return fmt.Errorf("kunci varian: %w", err)
+		return nil, fmt.Errorf("kunci varian: %w", err)
 	}
+	defer rows.Close()
+	states := map[uuid.UUID]variantState{}
+	for rows.Next() {
+		var id uuid.UUID
+		var st variantState
+		if err := rows.Scan(&id, &st.sku, &st.costPrice, &st.price); err != nil {
+			return nil, fmt.Errorf("scan varian: %w", err)
+		}
+		states[id] = st
+	}
+	return states, rows.Err()
+}
+
+func uuidStrings(ids []uuid.UUID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = id.String()
+	}
+	return out
+}
+
+func applyUpdate(ctx context.Context, tx pgx.Tx, a application.Actor, id uuid.UUID, in domain.ProductInput, now time.Time, out *domain.Product) error {
+	existing, err := loadVariantStates(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	kept := map[uuid.UUID]bool{}
+	for i, v := range in.Variants {
+		if v.ID == nil {
+			continue
+		}
+		if _, ok := existing[*v.ID]; !ok {
+			return &application.InvalidVariantError{Index: i}
+		}
+		kept[*v.ID] = true
+	}
+	var keptIDs, removedIDs, allIDs []uuid.UUID
+	for vid := range existing {
+		allIDs = append(allIDs, vid)
+		if kept[vid] {
+			keptIDs = append(keptIDs, vid)
+		} else {
+			removedIDs = append(removedIDs, vid)
+		}
+	}
+
 	if _, err := tx.Exec(ctx, `
-		UPDATE products SET name = $2, category_id = $3, taxable = $4, track_stock = $5, kitchen_station = $6,
-		       is_active = $7, version = version + 1, updated_by = $8, updated_at = $9 WHERE id = $1`,
-		id, in.Name, in.CategoryID, in.Taxable, in.TrackStock, nullable(in.KitchenStation), in.IsActive, a.UserID, now); err != nil {
+		UPDATE products SET name = $2, type = $3, category_id = $4, taxable = $5, track_stock = $6, kitchen_station = $7,
+		       is_active = $8, version = version + 1, updated_by = $9, updated_at = $10 WHERE id = $1`,
+		id, in.Name, domain.ProductType(len(in.Variants)), in.CategoryID, in.Taxable, in.TrackStock,
+		nullable(in.KitchenStation), in.IsActive, a.UserID, now); err != nil {
 		return fmt.Errorf("update produk: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE product_variants SET name = $2, sku = COALESCE(NULLIF($3::text, ''), sku), cost_price = $4, sell_price = $5,
-		       updated_by = $6, updated_at = $7 WHERE id = $1`,
-		variantID, v.Name, v.SKU, v.CostPrice, v.SellPrice, a.UserID, now); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, `UPDATE product_variants SET deleted_at = $2, is_default = false, updated_at = $2, updated_by = $3
+		WHERE id = ANY($1::uuid[])`, uuidStrings(removedIDs), now, a.UserID); err != nil {
+		return fmt.Errorf("hapus varian: %w", err)
 	}
-	if err := insertPriceHistory(ctx, tx, a, variantID, "cost_price", oldCost, v.CostPrice, now); err != nil {
-		return err
-	}
-	if err := insertPriceHistory(ctx, tx, a, variantID, "sell_price", oldSell, v.SellPrice, now); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM variant_barcodes WHERE variant_id = $1`, variantID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM variant_barcodes WHERE variant_id = ANY($1::uuid[])`, uuidStrings(allIDs)); err != nil {
 		return fmt.Errorf("hapus barcode lama: %w", err)
 	}
-	if err := insertBarcodes(ctx, tx, a.TenantID, variantID, v.Barcodes); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, `UPDATE product_variants SET name = id::text, sku = id::text, is_default = false
+		WHERE id = ANY($1::uuid[])`, uuidStrings(keptIDs)); err != nil {
+		return fmt.Errorf("parkir varian: %w", err)
+	}
+	for i, v := range in.Variants {
+		if v.ID == nil {
+			if err := insertVariant(ctx, tx, a, id, v, i == 0, now); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := updateVariant(ctx, tx, a, v, existing[*v.ID], i == 0, now); err != nil {
+			return err
+		}
 	}
 	updated, err := getProduct(ctx, tx, id)
 	*out = updated
 	return err
+}
+
+func updateVariant(ctx context.Context, tx pgx.Tx, a application.Actor, v domain.VariantInput, old variantState, isDefault bool, now time.Time) error {
+	sku := v.SKU
+	if sku == "" {
+		sku = old.sku // SKU kosong = pertahankan
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE product_variants SET name = $2, sku = $3, cost_price = $4, sell_price = $5, is_default = $6, is_active = $7,
+		       updated_by = $8, updated_at = $9 WHERE id = $1`,
+		*v.ID, v.Name, sku, v.CostPrice, v.SellPrice, isDefault, v.IsActive, a.UserID, now); err != nil {
+		return err
+	}
+	if err := insertPriceHistory(ctx, tx, a, *v.ID, "cost_price", old.costPrice, v.CostPrice, now); err != nil {
+		return err
+	}
+	if err := insertPriceHistory(ctx, tx, a, *v.ID, "sell_price", old.price, v.SellPrice, now); err != nil {
+		return err
+	}
+	return insertBarcodes(ctx, tx, a.TenantID, *v.ID, v.Barcodes)
 }
 
 func (r *Repository) DeleteProduct(ctx context.Context, a application.Actor, id uuid.UUID, now time.Time) error {

@@ -173,6 +173,8 @@ func TestProductsUpdateConcurrencyHistoryAndDelete(t *testing.T) {
 	url := srv.URL + "/v1/products/" + id
 
 	upd := productBody("Kopi Hitam", "", []string{"222"}, 8000, 16000, map[string]any{"category_id": catID})
+	// varian lama harus dirujuk lewat id; tanpa id dianggap varian baru
+	upd["variants"].([]map[string]any)[0]["id"] = firstVariant(p)["id"]
 	if res, out := callH(t, "PATCH", url, upd, owner.token, nil); res.StatusCode != http.StatusPreconditionRequired || out["code"] != "PRECONDITION_REQUIRED" {
 		t.Fatalf("tanpa If-Match: %d %v", res.StatusCode, out)
 	}

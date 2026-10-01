@@ -15,6 +15,7 @@ import (
 
 type fakeProductRepo struct {
 	created NewProduct
+	updated domain.ProductInput
 	filter  ProductFilter
 	page    ProductPage
 	err     error
@@ -31,37 +32,56 @@ func (f *fakeProductRepo) ListProducts(_ context.Context, _ uuid.UUID, fl Produc
 	f.filter = fl
 	return f.page, f.err
 }
-func (f *fakeProductRepo) UpdateProduct(context.Context, Actor, uuid.UUID, int, domain.ProductInput, time.Time) (domain.Product, error) {
+func (f *fakeProductRepo) UpdateProduct(_ context.Context, _ Actor, _ uuid.UUID, _ int, in domain.ProductInput, _ time.Time) (domain.Product, error) {
+	f.updated = in
 	return domain.Product{}, f.err
 }
 func (f *fakeProductRepo) DeleteProduct(context.Context, Actor, uuid.UUID, time.Time) error {
 	return f.err
 }
 
-func input(sku string) domain.ProductInput {
-	return domain.ProductInput{Name: "Kopi", IsActive: true,
-		Variants: []domain.VariantInput{{SKU: sku, SellPrice: 1000}}}
-}
+var autoSKUPattern = regexp.MustCompile(`^SKU-[0-9A-F]{8}$`)
 
-func TestCreateGeneratesSKUWhenEmptyAndKeepsGivenSKU(t *testing.T) {
+func TestCreateAssignsIDsAndSKUsForEveryVariant(t *testing.T) {
 	repo := &fakeProductRepo{}
 	svc := NewProductService(repo)
-
-	if _, err := svc.Create(context.Background(), Actor{}, input("")); err != nil {
+	stale := uuid.New()
+	in := domain.ProductInput{Name: "Kopi", IsActive: true, Variants: []domain.VariantInput{
+		{ID: &stale, Name: "Small", SellPrice: 1, IsActive: true}, // id klien harus diabaikan
+		{Name: "Large", SKU: "K-L", SellPrice: 2, IsActive: true},
+	}}
+	if _, err := svc.Create(context.Background(), Actor{}, in); err != nil {
 		t.Fatal(err)
 	}
-	if !regexp.MustCompile(`^SKU-[0-9A-F]{8}$`).MatchString(repo.created.Input.Variants[0].SKU) {
-		t.Fatalf("sku otomatis salah: %q", repo.created.Input.Variants[0].SKU)
+	vs := repo.created.Input.Variants
+	if repo.created.ID.Version() != 7 || vs[0].ID != nil || vs[1].ID != nil {
+		t.Fatalf("id produk/varian salah: %+v", repo.created)
 	}
-	if repo.created.ID.Version() != 7 || repo.created.VariantID.Version() != 7 {
-		t.Fatal("id harus UUIDv7")
+	if vs[0].NewID.Version() != 7 || vs[1].NewID.Version() != 7 || vs[0].NewID == vs[1].NewID {
+		t.Fatal("NewID harus UUIDv7 dan unik")
 	}
+	if !autoSKUPattern.MatchString(vs[0].SKU) || vs[1].SKU != "K-L" {
+		t.Fatalf("sku: %q %q", vs[0].SKU, vs[1].SKU)
+	}
+}
 
-	if _, err := svc.Create(context.Background(), Actor{}, input("KOPI-1")); err != nil {
+func TestUpdateOnlyAssignsNewVariants(t *testing.T) {
+	repo := &fakeProductRepo{}
+	svc := NewProductService(repo)
+	existing := uuid.New()
+	in := domain.ProductInput{Name: "Kopi", IsActive: true, Variants: []domain.VariantInput{
+		{ID: &existing, Name: "Small", IsActive: true}, // SKU kosong = dipertahankan oleh repository
+		{Name: "XL", IsActive: true},
+	}}
+	if _, err := svc.Update(context.Background(), Actor{}, uuid.New(), 1, in); err != nil {
 		t.Fatal(err)
 	}
-	if repo.created.Input.Variants[0].SKU != "KOPI-1" {
-		t.Fatalf("sku harus dipertahankan: %q", repo.created.Input.Variants[0].SKU)
+	vs := repo.updated.Variants
+	if vs[0].ID == nil || *vs[0].ID != existing || vs[0].NewID != uuid.Nil || vs[0].SKU != "" {
+		t.Fatalf("varian lama tidak boleh disentuh: %+v", vs[0])
+	}
+	if vs[1].ID != nil || vs[1].NewID == uuid.Nil || !autoSKUPattern.MatchString(vs[1].SKU) {
+		t.Fatalf("varian baru harus mendapat id dan sku: %+v", vs[1])
 	}
 }
 

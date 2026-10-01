@@ -17,12 +17,14 @@
 │   ├── db/migrations/
 │   │   ├── 00001_identity.sql
 │   │   ├── 00002_categories.sql
-│   │   └── 00003_products.sql         # baru (fase 3)
+│   │   ├── 00003_products.sql
+│   │   └── 00004_variants.sql         # baru (fase 4): is_active varian, nama varian unik
 │   └── internal/
 │       ├── app/router.go              # rakit router + /healthz (mount auth + catalog)
 │       ├── app/integration_test.go    # e2e auth + RLS (butuh TEST_DATABASE_URL)
 │       ├── app/catalog_integration_test.go   # kategori, otorisasi, isolasi
-│       ├── app/products_integration_test.go  # baru: produk, ETag, pencarian, riwayat harga
+│       ├── app/products_integration_test.go  # produk, ETag, pencarian, riwayat harga
+│       ├── app/variants_integration_test.go  # baru: varian ganda, sinkronisasi, default, konversi
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
@@ -43,7 +45,8 @@
     │   ├── dashboard/page.tsx         # redirect ke /admin
     │   └── admin/                     # layout.tsx, page.tsx, categories/page.tsx,
     │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx)
-    ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx, ProductForm.tsx
+    ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx,
+    │                                  # ProductForm.tsx (editor varian)
     └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts,
                                        # catalog-api.ts (+ *.test.ts)
 ```
