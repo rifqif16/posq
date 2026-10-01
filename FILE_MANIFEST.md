@@ -29,7 +29,8 @@
 │       ├── app/variants_integration_test.go
 │       ├── app/modifiers_integration_test.go
 │       ├── app/product_modifiers_integration_test.go
-│       ├── app/price_history_integration_test.go     # baru: riwayat harga
+│       ├── app/price_history_integration_test.go
+│       ├── app/product_csv_integration_test.go       # baru: impor/ekspor CSV
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
@@ -41,9 +42,11 @@
 │       │                              # interface/http/ (+guard.go)
 │       └── catalog/                   # README.md, module.go (Handlers),
 │                                      # domain/ (category, product, modifier, price_history),
-│                                      # application/ (service, products, modifiers, links, price_history),
-│                                      # infrastructure/pg/ (repository, products, modifiers, modifier_links, price_history),
-│                                      # interface/http/ (handler, products, modifiers, price_history)
+│                                      # application/ (service, products, modifiers, links, price_history,
+│                                      #               product_csv_format, product_csv_import),
+│                                      # infrastructure/pg/ (repository, products, modifiers, modifier_links,
+│                                      #                     price_history, product_csv),
+│                                      # interface/http/ (handler, products, modifiers, price_history, product_csv)
 └── web/
     ├── package.json, tsconfig.json, next.config.ts, postcss.config.mjs, vitest.config.mts
     ├── app/
@@ -51,10 +54,12 @@
     │   ├── login/, register/
     │   ├── dashboard/page.tsx         # redirect ke /admin
     │   └── admin/                     # layout.tsx, page.tsx, categories/page.tsx,
-    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx, [id]/history/page.tsx),
+    │                                  # products/ (page.tsx, new/page.tsx, import/page.tsx,
+    │                                  #            [id]/page.tsx, [id]/history/page.tsx),
     │                                  # modifiers/ (page.tsx, new/page.tsx, [id]/page.tsx)
     ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx,
     │                                  # ProductForm.tsx, ModifierGroupForm.tsx
     └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts, modifier.ts,
-                                       # catalog-api.ts, price-history.ts, price-history-api.ts (+ *.test.ts)
+                                       # catalog-api.ts, price-history.ts, price-history-api.ts,
+                                       # csv-import.ts, product-csv-api.ts (+ *.test.ts)
 ```

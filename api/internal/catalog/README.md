@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Katalog menu/produk tenant: kategori, produk (sederhana dan bervarian), grup modifier dengan opsi bertarif, penautan grup ke produk, dan riwayat harga.
+Katalog menu/produk tenant: kategori, produk (sederhana dan bervarian), grup modifier dengan opsi bertarif, penautan grup ke produk, riwayat harga, serta ekspor dan impor CSV produk.
 
 ## Responsibilities
 
@@ -12,6 +12,7 @@ Katalog menu/produk tenant: kategori, produk (sederhana dan bervarian), grup mod
 - Menautkan 0–10 grup modifier (berurut) ke setiap produk.
 - Optimistic concurrency (`version` + `If-Match`) pada produk dan grup modifier.
 - Mencatat dan menyajikan riwayat perubahan harga beli/jual per varian.
+- Ekspor seluruh produk ke CSV dan impor produk baru dari CSV (validasi dulu, commit semua-atau-tidak).
 - Isolasi tenant lewat RLS pada setiap query.
 
 ## Features
@@ -30,9 +31,18 @@ Produk:
 - `GET /v1/products/{id}` (`product:read`): menyertakan `ETag`, `version`, dan `modifier_group_ids`
 - `PATCH /v1/products/{id}` (`product:write`): wajib `If-Match: "<version>"`; mengganti seluruh field yang dapat diubah; varian: `id` = varian lama (SKU kosong berarti dipertahankan), tanpa `id` = varian baru, tidak dikirim = dihapus; `modifier_group_ids` mengganti seluruh penautan (dihilangkan = tanpa grup)
 - `DELETE /v1/products/{id}` (`product:write`): soft delete produk dan varian; barcode dan penautan grup dibebaskan
-- `GET /v1/products/{id}/price-history?limit=&cursor=` (`product:cost_price_read`): perubahan harga beli/jual semua varian produk (termasuk varian yang sudah dihapus), terbaru dulu, paginasi cursor keyset `(at, id)`; item berisi `variant_name`, `field`, `old_value`, `new_value`, `changed_by`, `at`
+- `GET /v1/products/{id}/price-history?limit=&cursor=` (`product:cost_price_read`): perubahan harga beli/jual semua varian produk (termasuk varian yang sudah dihapus), terbaru dulu, paginasi cursor keyset `(at, id)`
 
 Tipe produk diturunkan dari jumlah varian: 1 = `simple`, ≥2 = `variant`. `cost_price` bernilai `null` untuk pemanggil tanpa `product:cost_price_read` (mis. kasir). `modifier_group_ids` selalu array dan dapat dibaca kasir. Harga awal saat produk dibuat tidak dicatat sebagai perubahan.
+
+CSV produk:
+
+- `GET /v1/products/export?delimiter=comma|semicolon` (`product:cost_price_read`): satu baris per varian, diawali BOM UTF-8, `Content-Disposition: attachment`
+- `POST /v1/products/import` (`product:write`): body CSV mentah (maks 2 MB, 2000 baris data; `Content-Type` diabaikan); tanpa `?commit=true` hanya validasi (200 + laporan); dengan `commit=true` dan valid hasilnya 201; bila ada kesalahan 422 `CSV_INVALID` dan tidak ada yang dibuat
+
+Format: 13 kolom `product_name, category, kitchen_station, taxable, track_stock, is_active, modifier_groups, variant_name, sku, barcodes, cost_price, sell_price, variant_is_active`. Hanya `product_name` dan `sell_price` yang wajib ada di header; kolom lain opsional dan kolom tak dikenal diabaikan. Baris dengan `product_name` sama (tanpa membedakan huruf besar/kecil) digabung menjadi satu produk; atribut produk dibaca dari baris pertamanya. `category` ditulis `Induk > Anak`; `modifier_groups` dan `barcodes` dipisah `|`. Boolean menerima `true/false`, `ya/tidak`, `1/0`. Harga bilangan bulat tanpa pemisah. Delimiter koma atau titik koma terdeteksi otomatis dari baris header.
+
+Impor bersifat create-only: nama produk, SKU, dan barcode yang sudah ada ditolak per baris; kategori dan grup modifier harus sudah ada. Laporan berisi `valid`, `products`, `variants`, `created`, `error_count`, dan `errors[]` (`row`, `column`, `message`; maks 200 ditampilkan).
 
 Grup modifier:
 
@@ -44,18 +54,19 @@ Grup modifier:
 
 `is_required` diturunkan: `min_select >= 1`. Aturan: `0 <= min <= max <= 50`, `min` tidak boleh melebihi jumlah opsi aktif, opsi default harus aktif dan jumlahnya tidak melebihi `max_select`, `price_delta` 0 sampai 1.000.000.000.
 
-Belum ada: impor/ekspor CSV, satuan, `min_stock`, ubah induk kategori.
+Belum ada: update massal lewat CSV, pembuatan kategori/grup otomatis saat impor, satuan, `min_stock`, ubah induk kategori.
 
 ## Structure
 
 ```text
 catalog/
 ├── README.md
-├── module.go            # composition root; mengembalikan Handlers{Catalog, PriceHistory}
+├── module.go            # composition root; mengembalikan Handlers{Catalog, PriceHistory, ProductCSV}
 ├── domain/              # Category, Product/Variant, ModifierGroup/Modifier, PriceChange, validasi
-├── application/         # Service (kategori), ProductService, ModifierService, PriceHistoryService, links.go
-├── infrastructure/pg/   # repository.go, products.go, modifiers.go, modifier_links.go, price_history.go
-└── interface/http/      # handler.go (kategori, routing, error), products.go, modifiers.go, price_history.go
+├── application/         # Service (kategori), ProductService, ModifierService, PriceHistoryService,
+│                        # ProductCSVService (product_csv_format.go, product_csv_import.go), links.go
+├── infrastructure/pg/   # repository.go, products.go, modifiers.go, modifier_links.go, price_history.go, product_csv.go
+└── interface/http/      # handler.go (kategori, routing, error), products.go, modifiers.go, price_history.go, product_csv.go
 ```
 
 ## Dependencies
@@ -65,8 +76,8 @@ catalog/
 
 ## API / Public Interface
 
-- `catalog.New(Deps)` mengembalikan `Handlers`; `Handlers.Catalog.Mount(r, guard)` dan `Handlers.PriceHistory.Mount(r, guard)` memasang rute di `/v1`.
-- Kode error: `VALIDATION_FAILED`, `BAD_REQUEST`, `NOT_FOUND`, `CATEGORY_NAME_TAKEN`, `CATEGORY_IN_USE`, `INVALID_PARENT`, `SKU_TAKEN`, `BARCODE_TAKEN`, `INVALID_CATEGORY`, `INVALID_VARIANT`, `INVALID_MODIFIER_GROUP`, `MODIFIER_GROUP_NAME_TAKEN`, `MODIFIER_GROUP_IN_USE`, `INVALID_MODIFIER`, `VERSION_CONFLICT` (412), `PRECONDITION_REQUIRED` (428), `FORBIDDEN`, `UNAUTHORIZED`.
+- `catalog.New(Deps)` mengembalikan `Handlers`; setiap handler punya `Mount(r, guard)` untuk memasang rute di `/v1`.
+- Kode error: `VALIDATION_FAILED`, `BAD_REQUEST`, `NOT_FOUND`, `CATEGORY_NAME_TAKEN`, `CATEGORY_IN_USE`, `INVALID_PARENT`, `SKU_TAKEN`, `BARCODE_TAKEN`, `INVALID_CATEGORY`, `INVALID_VARIANT`, `INVALID_MODIFIER_GROUP`, `MODIFIER_GROUP_NAME_TAKEN`, `MODIFIER_GROUP_IN_USE`, `INVALID_MODIFIER`, `CSV_INVALID` (422), `PAYLOAD_TOO_LARGE` (413), `VERSION_CONFLICT` (412), `PRECONDITION_REQUIRED` (428), `FORBIDDEN`, `UNAUTHORIZED`.
 - Field error memakai path, mis. `variants[1].sku`, `modifiers[0].price_delta`, `modifier_group_ids[2]`.
 
 ## Data
@@ -79,8 +90,8 @@ Tidak ada.
 
 ## Testing
 
-- Unit: validasi domain (varian, modifier, penautan), service (repository fake), cursor kunci dan cursor waktu.
-- Integration: `internal/app/{catalog,products,variants,modifiers,product_modifiers,price_history}_integration_test.go` (CRUD, hierarki, unik SKU/barcode, pencarian, paginasi, ETag, sinkronisasi varian/opsi, penautan grup, balapan penaut vs penghapus, riwayat harga terbaru-dulu dan lintas halaman, riwayat varian terhapus, otorisasi, isolasi tenant).
+- Unit: validasi domain (varian, modifier, penautan), service (repository fake), cursor kunci dan cursor waktu, parser/penulis CSV (header, BOM, delimiter, CRLF, kesalahan per baris dan kolom, duplikat antar produk, batas baris, sanitasi formula, round trip).
+- Integration: `internal/app/{catalog,products,variants,modifiers,product_modifiers,price_history,product_csv}_integration_test.go` (CRUD, hierarki, unik SKU/barcode, pencarian, paginasi, ETag, sinkronisasi varian/opsi, penautan grup, balapan penaut vs penghapus, riwayat harga, validasi lalu commit CSV, commit semua-atau-tidak, impor ulang ditolak, ekspor, round trip lintas tenant, otorisasi, isolasi tenant).
 
 ## Constraints
 
@@ -88,7 +99,8 @@ Tidak ada.
 - Penulisan produk dan grup selalu dalam satu transaksi; baris induk dikunci `FOR UPDATE`, sehingga edit varian/opsi berjalan serial.
 - Saat update, varian/opsi lama "diparkir" (nama/SKU sementara) lebih dulu agar pertukaran nama tidak menabrak indeks unik.
 - Id varian/opsi baru dan SKU otomatis dibuat server (service); `id` dari klien hanya merujuk entitas yang sudah ada pada induk yang sama.
-- Riwayat harga ditulis dalam transaksi yang sama dengan perubahan harga; cursor menyimpan waktu dalam presisi mikrodetik agar tidak ada baris terlewat atau ganda antar halaman.
-- Riwayat harga memuat harga beli, sehingga seluruh endpoint-nya memakai `product:cost_price_read`, bukan `product:read`.
+- Riwayat harga ditulis dalam transaksi yang sama dengan perubahan harga; seluruh endpoint-nya memakai `product:cost_price_read` karena memuat harga beli.
+- Impor CSV: validasi dan commit memakai kode yang sama; commit menulis semua produk dalam satu transaksi (satu kegagalan membatalkan semuanya). Pengecekan SKU/barcode/nama yang sudah ada dilakukan sebelum commit untuk menghasilkan laporan per baris, dan constraint database tetap menjadi pengaman terakhir (balapan menghasilkan 409).
+- CSV: sel teks berawalan `=`, `+`, `-`, `@`, tab, atau CR diberi apostrof saat ekspor (anti formula injection) dan apostrof itu dibuang lagi saat impor.
 - Aplikasi tidak punya hak `DELETE` kecuali pada `variant_barcodes` dan `product_modifier_groups`.
 - Harga disimpan `bigint` Rupiah, maksimal 1.000.000.000 per item.

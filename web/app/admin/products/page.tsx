@@ -29,7 +29,7 @@ export default function ProductsPage() {
   useEffect(() => {
     listCategories()
       .then(setCategories)
-      .catch(() => undefined); // hanya untuk filter; daftar produk tetap tampil
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -37,7 +37,6 @@ export default function ProductsPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Muat ulang dari awal setiap filter berubah; hasil basi dari request lama diabaikan.
   useEffect(() => {
     let cancelled = false;
     setState("loading");
@@ -84,12 +83,20 @@ export default function ProductsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Produk</h1>
         {canWrite && (
-          <Link
-            href="/admin/products/new"
-            className="min-h-11 rounded-lg bg-amber-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-800"
-          >
-            Produk baru
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/admin/products/import"
+              className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm hover:bg-stone-100"
+            >
+              Impor / ekspor
+            </Link>
+            <Link
+              href="/admin/products/new"
+              className="min-h-11 rounded-lg bg-amber-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-800"
+            >
+              Produk baru
+            </Link>
+          </div>
         )}
       </div>
 

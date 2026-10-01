@@ -31,7 +31,8 @@ let accessToken: string | null = null;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body) headers.set("Content-Type", "application/json");
+  if (init.body && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   const res = await fetch(`/api${path}`, {
@@ -44,7 +45,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const fields: FieldErrors = {};
-    for (const e of data?.errors ?? []) fields[e.field] = e.message;
+    for (const e of data?.errors ?? [])
+      if (typeof e?.field === "string") fields[e.field] = e.message;
     throw new ApiError(
       res.status,
       data?.code ?? "UNKNOWN",
@@ -115,6 +117,30 @@ export async function authedRequest<T>(
     if (!(await restoreSession())) throw e;
     return request<T>(path, init);
   }
+}
+
+export async function authedDownload(
+  path: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const attempt = () => {
+    const headers = new Headers();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(`/api${path}`, { headers, credentials: "same-origin" });
+  };
+  let res = await attempt();
+  if (res.status === 401 && (await restoreSession())) res = await attempt();
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(
+      res.status,
+      data?.code ?? "UNKNOWN",
+      data?.detail ?? "Terjadi kesalahan",
+    );
+  }
+  const match = /filename="([^"]+)"/.exec(
+    res.headers.get("Content-Disposition") ?? "",
+  );
+  return { blob: await res.blob(), filename: match?.[1] ?? "produk.csv" };
 }
 
 export async function logout(): Promise<void> {

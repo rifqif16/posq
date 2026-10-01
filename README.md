@@ -2,7 +2,7 @@
 
 POS SaaS berbasis web untuk F&B. Spesifikasi: `POSQ.md` (sumber kebenaran produk).
 
-Status: **7 dari 17 fase selesai**. Sudah ada: registrasi/login/refresh/profil, permission guard, kategori, produk sederhana dan bervarian, grup modifier beserta penautannya ke produk, dan riwayat harga. Shell admin di web: `/admin`, `/admin/products`, `/admin/modifiers`, `/admin/categories`.
+Status: **8 dari 17 fase selesai**. Sudah ada: registrasi/login/refresh/profil, permission guard, kategori, produk sederhana dan bervarian, grup modifier beserta penautannya ke produk, riwayat harga, serta ekspor/impor CSV produk. Shell admin di web: `/admin`, `/admin/products` (termasuk `/import` dan riwayat harga), `/admin/modifiers`, `/admin/categories`.
 
 ## Prasyarat
 
@@ -21,7 +21,7 @@ cd api && go run ./cmd/api
 cd web && pnpm install && pnpm dev
 ```
 
-Buka <http://localhost:3000/register>, lalu <http://localhost:3000/admin/products> atau <http://localhost:3000/admin/modifiers>.
+Buka <http://localhost:3000/register>, lalu <http://localhost:3000/admin/products> atau <http://localhost:3000/admin/products/import>.
 
 ## Test
 
