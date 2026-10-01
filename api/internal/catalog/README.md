@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Katalog menu/produk tenant: kategori dan produk sederhana (satu varian default). Varian ganda dan modifier menyusul.
+Katalog menu/produk tenant: kategori, produk sederhana, dan produk bervarian (ukuran S/M/L, dll.). Modifier menyusul.
 
 ## Responsibilities
 
 - CRUD kategori dengan hierarki maksimal 2 level (induk → anak).
-- CRUD produk sederhana dengan SKU, barcode, harga beli/jual, dan pencarian.
-- Optimistic concurrency produk (`version` + `If-Match`) dan pencatatan riwayat harga.
+- CRUD produk dengan 1–20 varian; SKU, barcode, harga beli/jual, status aktif per varian; pencarian.
+- Optimistic concurrency produk (`version` + `If-Match`) dan pencatatan riwayat harga per varian.
 - Isolasi tenant lewat RLS pada setiap query.
 
 ## Features
@@ -22,15 +22,15 @@ Kategori:
 
 Produk:
 
-- `GET /v1/products?q=&category_id=&limit=&cursor=` (`product:read`): pencarian nama/SKU (sebagian) dan barcode (persis); paginasi cursor keyset; urut `lower(name), id`
-- `POST /v1/products` (`product:write`): `variants` berisi tepat satu varian; SKU kosong dibuat otomatis (`SKU-XXXXXXXX`)
+- `GET /v1/products?q=&category_id=&limit=&cursor=` (`product:read`): pencarian nama/SKU (sebagian) dan barcode (persis) pada varian mana pun; paginasi cursor keyset; urut `lower(name), id`
+- `POST /v1/products` (`product:write`): `variants` berisi 1–20 varian; varian pertama menjadi default; nama varian wajib bila lebih dari satu; SKU kosong dibuat otomatis (`SKU-XXXXXXXX`)
 - `GET /v1/products/{id}` (`product:read`): menyertakan `ETag` dan `version`
-- `PATCH /v1/products/{id}` (`product:write`): wajib `If-Match: "<version>"`; mengganti seluruh field yang dapat diubah; SKU kosong berarti SKU dipertahankan
-- `DELETE /v1/products/{id}` (`product:write`): soft delete; barcode dibebaskan
+- `PATCH /v1/products/{id}` (`product:write`): wajib `If-Match: "<version>"`; mengganti seluruh field yang dapat diubah dan menyinkronkan varian: `id` = varian lama (SKU kosong berarti dipertahankan), tanpa `id` = varian baru, varian yang tidak dikirim = dihapus; urutan pertama menjadi default
+- `DELETE /v1/products/{id}` (`product:write`): soft delete produk dan varian; barcode dibebaskan
 
-`cost_price` bernilai `null` untuk pemanggil tanpa `product:cost_price_read` (mis. kasir).
+Tipe produk diturunkan dari jumlah varian: 1 = `simple`, ≥2 = `variant`. `cost_price` bernilai `null` untuk pemanggil tanpa `product:cost_price_read` (mis. kasir).
 
-Belum ada: varian ganda, modifier, impor/ekspor CSV, satuan, `min_stock`, API pembaca riwayat harga, ubah induk kategori.
+Belum ada: modifier dan grup modifier, impor/ekspor CSV, satuan, `min_stock`, API pembaca riwayat harga, ubah induk kategori.
 
 ## Structure
 
@@ -40,7 +40,7 @@ catalog/
 ├── module.go            # composition root
 ├── domain/              # Category, Product, Variant, validasi
 ├── application/         # Service (kategori), ProductService + port Repository/ProductRepository
-├── infrastructure/pg/   # repository.go (kategori), products.go (produk)
+├── infrastructure/pg/   # repository.go (kategori), products.go (produk + sinkronisasi varian)
 └── interface/http/      # handler.go (kategori, routing, error), products.go (produk)
 ```
 
@@ -52,11 +52,12 @@ catalog/
 ## API / Public Interface
 
 - `catalog.New(Deps)` mengembalikan `*httpapi.Handler`; `Mount(r, guard)` memasang rute di `/v1`.
-- Kode error: `VALIDATION_FAILED`, `BAD_REQUEST`, `NOT_FOUND`, `CATEGORY_NAME_TAKEN`, `CATEGORY_IN_USE`, `INVALID_PARENT`, `SKU_TAKEN`, `BARCODE_TAKEN`, `INVALID_CATEGORY`, `VERSION_CONFLICT` (412), `PRECONDITION_REQUIRED` (428), `FORBIDDEN`, `UNAUTHORIZED`.
+- Kode error: `VALIDATION_FAILED`, `BAD_REQUEST`, `NOT_FOUND`, `CATEGORY_NAME_TAKEN`, `CATEGORY_IN_USE`, `INVALID_PARENT`, `SKU_TAKEN`, `BARCODE_TAKEN`, `INVALID_CATEGORY`, `INVALID_VARIANT`, `VERSION_CONFLICT` (412), `PRECONDITION_REQUIRED` (428), `FORBIDDEN`, `UNAUTHORIZED`.
+- Field error varian memakai path `variants[i].field` (mis. `variants[1].sku`).
 
 ## Data
 
-`categories`, `products`, `product_variants`, `variant_barcodes`, `product_price_history` (semua RLS). Soft delete lewat `deleted_at`. SKU unik per tenant (case-insensitive) dan barcode unik per tenant, keduanya hanya di antara data aktif. FK komposit `(tenant_id, ...)` mencegah referensi lintas tenant.
+`categories`, `products`, `product_variants`, `variant_barcodes`, `product_price_history` (semua RLS). Soft delete lewat `deleted_at`. SKU unik per tenant (case-insensitive), nama varian unik per produk, dan barcode unik per tenant, semuanya hanya di antara data aktif. FK komposit `(tenant_id, ...)` mencegah referensi lintas tenant.
 
 ## Integrations
 
@@ -64,13 +65,15 @@ Tidak ada.
 
 ## Testing
 
-- Unit: validasi domain, service (repository fake), cursor.
-- Integration: `internal/app/catalog_integration_test.go` dan `products_integration_test.go` (CRUD, hierarki, unik SKU/barcode, pencarian dan escape wildcard, paginasi, ETag, riwayat harga, otorisasi kasir, isolasi tenant).
+- Unit: validasi domain (termasuk keunikan lintas varian), service (repository fake), cursor.
+- Integration: `internal/app/{catalog,products,variants}_integration_test.go` (CRUD, hierarki, unik SKU/barcode, pencarian dan escape wildcard, paginasi, ETag, riwayat harga, sinkronisasi varian, pertukaran nama/SKU, pergantian default, konversi simple↔variant, otorisasi kasir, isolasi tenant).
 
 ## Constraints
 
 - Kategori dikunci `FOR SHARE` saat dipakai induk/produk dan `FOR UPDATE` saat dihapus, agar tidak ada data yatim akibat balapan.
-- Penulisan produk selalu dalam satu transaksi (produk + varian + barcode + riwayat harga).
+- Penulisan produk selalu dalam satu transaksi (produk + varian + barcode + riwayat harga); baris produk dikunci `FOR UPDATE`, sehingga edit varian berjalan serial per produk.
+- Saat update, varian lama "diparkir" (nama/SKU sementara) lebih dulu agar pertukaran nama/SKU tidak menabrak indeks unik.
+- Id varian baru dan SKU otomatis dibuat server (service), bukan klien; `id` varian dari klien hanya dipakai untuk merujuk varian yang sudah ada pada produk yang sama.
 - Aplikasi tidak punya hak `DELETE` kecuali pada `variant_barcodes`.
 - Harga disimpan `bigint` Rupiah, maksimal 1.000.000.000 per item.
-- Fase 4 harus melonggarkan aturan "tepat satu varian" dan menambah `is_active`/`min_stock` pada varian lewat migrasi baru.
+- Urutan varian selain default mengikuti urutan pembuatan, bukan urutan kiriman.

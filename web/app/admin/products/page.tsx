@@ -6,8 +6,7 @@ import { useSession } from "@/components/SessionProvider";
 import { ApiError } from "@/lib/api";
 import { listCategories, listProducts } from "@/lib/catalog-api";
 import type { Category } from "@/lib/category";
-import { formatRupiah } from "@/lib/money";
-import type { Product } from "@/lib/product";
+import { type Product, sellPriceLabel } from "@/lib/product";
 
 const message = (e: unknown) =>
   e instanceof ApiError ? e.message : "Tidak dapat terhubung ke server";
@@ -38,6 +37,7 @@ export default function ProductsPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Muat ulang dari awal setiap filter berubah; hasil basi dari request lama diabaikan.
   useEffect(() => {
     let cancelled = false;
     setState("loading");
@@ -137,6 +137,8 @@ export default function ProductsPage() {
         <ul className="divide-y divide-stone-200 rounded-xl border border-stone-200 bg-white">
           {items.map((p) => {
             const v = p.variants[0];
+            const detail =
+              p.variants.length > 1 ? `${p.variants.length} varian` : v?.sku;
             const body = (
               <div className="flex items-center justify-between gap-3 p-3">
                 <div className="min-w-0">
@@ -149,14 +151,14 @@ export default function ProductsPage() {
                     )}
                   </p>
                   <p className="truncate text-sm text-stone-600">
-                    {v?.sku}
+                    {detail}
                     {categoryName(p.category_id)
                       ? ` · ${categoryName(p.category_id)}`
                       : ""}
                   </p>
                 </div>
-                <p className="shrink-0 font-medium">
-                  {v ? formatRupiah(v.sell_price) : "-"}
+                <p className="shrink-0 text-right font-medium">
+                  {sellPriceLabel(p)}
                 </p>
               </div>
             );
