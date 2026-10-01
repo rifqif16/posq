@@ -6,8 +6,13 @@ import { useEffect, useState } from "react";
 import { ProductFormView, type SubmitError } from "@/components/ProductForm";
 import { useSession } from "@/components/SessionProvider";
 import { ApiError } from "@/lib/api";
-import { createProduct, listCategories } from "@/lib/catalog-api";
+import {
+  createProduct,
+  listCategories,
+  listModifierGroups,
+} from "@/lib/catalog-api";
 import type { Category } from "@/lib/category";
+import type { ModifierGroup } from "@/lib/modifier";
 import { type ProductRequest, emptyForm } from "@/lib/product";
 
 export default function NewProductPage() {
@@ -15,13 +20,20 @@ export default function NewProductPage() {
   const { profile } = useSession();
   const canWrite =
     profile.user.role === "owner" || profile.user.role === "admin";
-  const [categories, setCategories] = useState<Category[] | null>(null);
+  const [options, setOptions] = useState<{
+    categories: Category[];
+    groups: ModifierGroup[];
+  } | null>(null);
   const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
-    listCategories()
-      .then(setCategories)
-      .catch(() => setLoadError("Tidak dapat memuat kategori"));
+    Promise.all([listCategories(), listModifierGroups()])
+      .then(([categories, groups]) =>
+        setOptions({ categories, groups: groups.items }),
+      )
+      .catch(() =>
+        setLoadError("Tidak dapat memuat kategori dan grup modifier"),
+      );
   }, []);
 
   async function onSubmit(req: ProductRequest): Promise<SubmitError | null> {
@@ -51,7 +63,7 @@ export default function NewProductPage() {
         {loadError}
       </p>
     );
-  if (!categories) return <p className="text-stone-600">Memuat…</p>;
+  if (!options) return <p className="text-stone-600">Memuat…</p>;
 
   return (
     <section className="space-y-4">
@@ -66,7 +78,8 @@ export default function NewProductPage() {
       </div>
       <ProductFormView
         initial={emptyForm()}
-        categories={categories}
+        categories={options.categories}
+        modifierGroups={options.groups}
         submitLabel="Simpan produk"
         onSubmit={onSubmit}
       />

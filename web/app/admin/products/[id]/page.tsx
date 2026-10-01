@@ -10,9 +10,11 @@ import {
   deleteProduct,
   getProduct,
   listCategories,
+  listModifierGroups,
   updateProduct,
 } from "@/lib/catalog-api";
 import type { Category } from "@/lib/category";
+import type { ModifierGroup } from "@/lib/modifier";
 import {
   type Product,
   type ProductRequest,
@@ -21,7 +23,12 @@ import {
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; product: Product; categories: Category[] }
+  | {
+      kind: "ready";
+      product: Product;
+      categories: Category[];
+      groups: ModifierGroup[];
+    }
   | { kind: "error"; message: string };
 
 export default function EditProductPage() {
@@ -35,10 +42,11 @@ export default function EditProductPage() {
   useEffect(() => {
     if (!canWrite) return;
     let cancelled = false;
-    Promise.all([getProduct(id), listCategories()])
+    Promise.all([getProduct(id), listCategories(), listModifierGroups()])
       .then(
-        ([product, categories]) =>
-          !cancelled && setLoad({ kind: "ready", product, categories }),
+        ([product, categories, groups]) =>
+          !cancelled &&
+          setLoad({ kind: "ready", product, categories, groups: groups.items }),
       )
       .catch((e) => {
         if (cancelled) return;
@@ -78,7 +86,7 @@ export default function EditProductPage() {
     );
   }
 
-  const { product, categories } = load;
+  const { product, categories, groups } = load;
 
   async function onSubmit(req: ProductRequest): Promise<SubmitError | null> {
     try {
@@ -121,6 +129,7 @@ export default function EditProductPage() {
       <ProductFormView
         initial={formFromProduct(product)}
         categories={categories}
+        modifierGroups={groups}
         submitLabel="Simpan perubahan"
         onSubmit={onSubmit}
         onDelete={onDelete}

@@ -4,6 +4,7 @@ import type { FieldErrors } from "./validate";
 export const MAX_PRICE = 1_000_000_000;
 export const MAX_BARCODES = 10;
 export const MAX_VARIANTS = 20;
+export const MAX_MODIFIER_GROUPS = 10;
 const CODE = /^[A-Za-z0-9._-]{1,64}$/;
 const STATION = /^[a-z0-9_-]{1,30}$/;
 
@@ -29,6 +30,7 @@ export interface Product {
   is_active: boolean;
   version: number;
   variants: Variant[];
+  modifier_group_ids: string[]; // berurut sesuai urutan tampil di kasir
 }
 
 export interface VariantForm {
@@ -51,6 +53,7 @@ export interface ProductForm {
   is_active: boolean;
   has_variants: boolean;
   variants: VariantForm[]; // mode tanpa varian hanya memakai elemen pertama
+  modifier_group_ids: string[]; // urutan pilih = urutan tampil
 }
 
 export interface VariantRequest {
@@ -71,6 +74,7 @@ export interface ProductRequest {
   is_active: boolean;
   kitchen_station: string;
   variants: VariantRequest[];
+  modifier_group_ids: string[];
 }
 
 let keySeq = 0;
@@ -98,6 +102,7 @@ export function emptyForm(): ProductForm {
     is_active: true,
     has_variants: false,
     variants: [emptyVariant()],
+    modifier_group_ids: [],
   };
 }
 
@@ -121,6 +126,7 @@ export function formFromProduct(p: Product): ProductForm {
     is_active: p.is_active,
     has_variants: variants.length > 1,
     variants: variants.length > 0 ? variants : [emptyVariant()],
+    modifier_group_ids: [...p.modifier_group_ids],
   };
 }
 
@@ -166,6 +172,12 @@ export function validateForm(f: ProductForm): FieldErrors {
       ? "Station hanya huruf kecil, angka, - dan _ (maks 30)"
       : undefined,
   );
+
+  if (f.modifier_group_ids.length > MAX_MODIFIER_GROUPS)
+    add(
+      "modifier_group_ids",
+      `Maksimal ${MAX_MODIFIER_GROUPS} grup modifier per produk`,
+    );
 
   const variants = effectiveVariants(f);
   if (f.has_variants) {
@@ -232,7 +244,12 @@ export function toRequest(f: ProductForm): ProductRequest {
       sell_price: parseRupiah(v.sell_price) ?? 0,
       is_active: multi ? v.is_active : true,
     })),
+    modifier_group_ids: f.modifier_group_ids,
   };
+}
+
+export function toggleId(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
 }
 
 export function makeDefault<T>(items: T[], index: number): T[] {
