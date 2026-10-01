@@ -119,12 +119,17 @@ export default function EditProductPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Ubah produk</h1>
-        <Link
-          href="/admin/products"
-          className="text-sm text-amber-800 underline"
-        >
-          Kembali
-        </Link>
+        <div className="flex gap-4 text-sm">
+          <Link
+            href={`/admin/products/${product.id}/history`}
+            className="text-amber-800 underline"
+          >
+            Riwayat harga
+          </Link>
+          <Link href="/admin/products" className="text-amber-800 underline">
+            Kembali
+          </Link>
+        </div>
       </div>
       <ProductFormView
         initial={formFromProduct(product)}
