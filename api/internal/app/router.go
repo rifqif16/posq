@@ -1,3 +1,4 @@
+// Package app merangkai router HTTP dan dependensi semua modul.
 package app
 
 import (

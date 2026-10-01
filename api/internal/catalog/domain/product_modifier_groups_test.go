@@ -27,7 +27,7 @@ func TestModifierGroupIDsValidation(t *testing.T) {
 	}
 
 	max := single()
-	for i := 0; i < MaxModifierGroups; i++ {
+	for range MaxModifierGroups {
 		max.ModifierGroupIDs = append(max.ModifierGroupIDs, uuid.New())
 	}
 	if _, err := max.Validate(); err != nil {

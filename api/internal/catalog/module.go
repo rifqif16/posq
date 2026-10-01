@@ -1,3 +1,4 @@
+// Package catalog adalah composition root modul katalog: merangkai repository, service, dan handler HTTP.
 package catalog
 
 import (

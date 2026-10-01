@@ -103,7 +103,7 @@ func TestPriceHistoryPagination(t *testing.T) {
 	seen := map[string]bool{}
 	var newValues []float64
 	cursor := ""
-	for page := 0; page < 10; page++ {
+	for range 10 {
 		query := "limit=2"
 		if cursor != "" {
 			query += "&cursor=" + cursor

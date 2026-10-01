@@ -106,7 +106,7 @@ func TestProductValidateFieldErrors(t *testing.T) {
 func TestVariantCountBoundaries(t *testing.T) {
 	make20 := func(n int) ProductInput {
 		in := ProductInput{Name: "X", IsActive: true}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			in.Variants = append(in.Variants, VariantInput{Name: fmt.Sprintf("V%d", i), SellPrice: 1, IsActive: true})
 		}
 		return in

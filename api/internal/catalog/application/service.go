@@ -1,3 +1,4 @@
+// Package application (catalog): use case kategori, produk, modifier, dan riwayat harga.
 package application
 
 import (

@@ -25,14 +25,14 @@ type variantRequest struct {
 }
 
 type productRequest struct {
-	Name           string           `json:"name"`
-	CategoryID     *uuid.UUID       `json:"category_id"`
-	Taxable        *bool            `json:"taxable"` // default true
-	TrackStock     bool             `json:"track_stock"`
-	IsActive       *bool            `json:"is_active"` // default true
-	KitchenStation string           `json:"kitchen_station"`
-	Variants       []variantRequest `json:"variants"`
-	ModifierGroupIDs []uuid.UUID `json:"modifier_group_ids"`
+	Name             string           `json:"name"`
+	CategoryID       *uuid.UUID       `json:"category_id"`
+	Taxable          *bool            `json:"taxable"` // default true
+	TrackStock       bool             `json:"track_stock"`
+	IsActive         *bool            `json:"is_active"` // default true
+	KitchenStation   string           `json:"kitchen_station"`
+	Variants         []variantRequest `json:"variants"`
+	ModifierGroupIDs []uuid.UUID      `json:"modifier_group_ids"`
 }
 
 func (p productRequest) toInput() domain.ProductInput {
@@ -70,17 +70,17 @@ type variantDTO struct {
 }
 
 type productDTO struct {
-	ID             uuid.UUID    `json:"id"`
-	Name           string       `json:"name"`
-	Type           string       `json:"type"`
-	CategoryID     *uuid.UUID   `json:"category_id"`
-	Taxable        bool         `json:"taxable"`
-	TrackStock     bool         `json:"track_stock"`
-	KitchenStation string       `json:"kitchen_station"`
-	IsActive       bool         `json:"is_active"`
-	Version        int          `json:"version"`
-	Variants       []variantDTO `json:"variants"`
-	ModifierGroupIDs []uuid.UUID `json:"modifier_group_ids"`
+	ID               uuid.UUID    `json:"id"`
+	Name             string       `json:"name"`
+	Type             string       `json:"type"`
+	CategoryID       *uuid.UUID   `json:"category_id"`
+	Taxable          bool         `json:"taxable"`
+	TrackStock       bool         `json:"track_stock"`
+	KitchenStation   string       `json:"kitchen_station"`
+	IsActive         bool         `json:"is_active"`
+	Version          int          `json:"version"`
+	Variants         []variantDTO `json:"variants"`
+	ModifierGroupIDs []uuid.UUID  `json:"modifier_group_ids"`
 }
 
 func toProductDTO(p domain.Product, showCost bool) productDTO {

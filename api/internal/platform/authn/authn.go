@@ -1,3 +1,4 @@
+// Package authn membawa identitas pengguna terautentikasi (Principal) lewat context request.
 package authn
 
 import (
