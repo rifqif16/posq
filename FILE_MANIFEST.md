@@ -16,29 +16,34 @@
 │   ├── db/embed.go
 │   ├── db/migrations/
 │   │   ├── 00001_identity.sql
-│   │   └── 00002_categories.sql       # baru (fase 2)
+│   │   ├── 00002_categories.sql
+│   │   └── 00003_products.sql         # baru (fase 3)
 │   └── internal/
 │       ├── app/router.go              # rakit router + /healthz (mount auth + catalog)
 │       ├── app/integration_test.go    # e2e auth + RLS (butuh TEST_DATABASE_URL)
-│       ├── app/catalog_integration_test.go   # baru: kategori, otorisasi, isolasi
+│       ├── app/catalog_integration_test.go   # kategori, otorisasi, isolasi
+│       ├── app/products_integration_test.go  # baru: produk, ETag, pencarian, riwayat harga
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
 │       ├── platform/ratelimit/        # limiter in-memory
-│       ├── platform/authn/            # baru: Principal di context
+│       ├── platform/authn/            # Principal di context (+ Has/Can)
 │       ├── tenant/                    # README.md, domain/, infrastructure/pg/
 │       ├── auth/                      # README.md, module.go, domain/ (+permission.go),
 │       │                              # application/, infrastructure/ (+pg/),
 │       │                              # interface/http/ (+guard.go)
-│       └── catalog/                   # baru: README.md, module.go, domain/, application/,
-│                                      # infrastructure/pg/, interface/http/
+│       └── catalog/                   # README.md, module.go, domain/ (category, product),
+│                                      # application/ (service, products), infrastructure/pg/
+│                                      # (repository, products), interface/http/ (handler, products)
 └── web/
     ├── package.json, tsconfig.json, next.config.ts, postcss.config.mjs, vitest.config.mts
     ├── app/
     │   ├── layout.tsx, page.tsx, globals.css
     │   ├── login/, register/
     │   ├── dashboard/page.tsx         # redirect ke /admin
-    │   └── admin/                     # baru: layout.tsx, page.tsx, categories/page.tsx
-    ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx
-    └── lib/                           # api.ts, validate.ts, category.ts, catalog-api.ts (+ *.test.ts)
+    │   └── admin/                     # layout.tsx, page.tsx, categories/page.tsx,
+    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx)
+    ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx, ProductForm.tsx
+    └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts,
+                                       # catalog-api.ts (+ *.test.ts)
 ```

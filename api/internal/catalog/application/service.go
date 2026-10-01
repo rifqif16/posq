@@ -1,4 +1,3 @@
-// Package application (catalog): use case kategori dan port persistensi.
 package application
 
 import (
@@ -15,7 +14,7 @@ import (
 var (
 	ErrNotFound          = errors.New("data tidak ditemukan")
 	ErrCategoryNameTaken = errors.New("nama kategori sudah dipakai")
-	ErrCategoryInUse     = errors.New("kategori masih memiliki sub-kategori")
+	ErrCategoryInUse     = errors.New("kategori masih dipakai sub-kategori atau produk")
 	ErrInvalidParent     = errors.New("induk kategori tidak valid")
 )
 

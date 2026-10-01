@@ -1,3 +1,4 @@
+// Package pg (catalog): implementasi application.Repository di PostgreSQL (RLS via WithTenantTx).
 package pg
 
 import (
@@ -118,7 +119,12 @@ func (r *Repository) DeleteCategory(ctx context.Context, a application.Actor, id
 		if err != nil {
 			return fmt.Errorf("cek anak: %w", err)
 		}
-		if hasChildren {
+		var hasProducts bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM products WHERE category_id = $1 AND deleted_at IS NULL)`, id).Scan(&hasProducts)
+		if err != nil {
+			return fmt.Errorf("cek produk: %w", err)
+		}
+		if hasChildren || hasProducts {
 			return application.ErrCategoryInUse
 		}
 		_, err = tx.Exec(ctx, `UPDATE categories SET deleted_at = $2, updated_at = $2, updated_by = $3 WHERE id = $1`, id, now, a.UserID)

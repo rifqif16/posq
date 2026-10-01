@@ -7,9 +7,14 @@ import (
 )
 
 type Principal struct {
-	UserID uuid.UUID
+	UserID   uuid.UUID
 	TenantID uuid.UUID
-	Role string
+	Role     string
+	Can      func(permission string) bool
+}
+
+func (p Principal) Has(permission string) bool {
+	return p.Can != nil && p.Can(permission)
 }
 
 type ctxKey struct{}
