@@ -1,3 +1,4 @@
+// Package httpapi (catalog): entrypoint HTTP katalog. Permission dipasang lewat guard yang disuntikkan.
 package httpapi
 
 import (
@@ -18,18 +19,20 @@ const (
 	permProductRead     = "product:read"
 	permProductWrite    = "product:write"
 	permProductCostRead = "product:cost_price_read"
+	permModifierManage  = "modifier:manage"
 )
 
 type Guard func(permission string) func(http.Handler) http.Handler
 
 type Handler struct {
-	svc      *application.Service
-	products *application.ProductService
-	log      *slog.Logger
+	svc       *application.Service
+	products  *application.ProductService
+	modifiers *application.ModifierService
+	log       *slog.Logger
 }
 
-func NewHandler(svc *application.Service, products *application.ProductService, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, products: products, log: log}
+func NewHandler(svc *application.Service, products *application.ProductService, modifiers *application.ModifierService, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, products: products, modifiers: modifiers, log: log}
 }
 
 func (h *Handler) Mount(r chi.Router, require Guard) {
@@ -43,6 +46,12 @@ func (h *Handler) Mount(r chi.Router, require Guard) {
 	r.With(require(permProductRead)).Get("/products/{id}", h.getProduct)
 	r.With(require(permProductWrite)).Patch("/products/{id}", h.updateProduct)
 	r.With(require(permProductWrite)).Delete("/products/{id}", h.deleteProduct)
+
+	r.With(require(permProductRead)).Get("/modifier-groups", h.listModifierGroups)
+	r.With(require(permModifierManage)).Post("/modifier-groups", h.createModifierGroup)
+	r.With(require(permProductRead)).Get("/modifier-groups/{id}", h.getModifierGroup)
+	r.With(require(permModifierManage)).Patch("/modifier-groups/{id}", h.updateModifierGroup)
+	r.With(require(permModifierManage)).Delete("/modifier-groups/{id}", h.deleteModifierGroup)
 }
 
 type categoryDTO struct {
