@@ -19,14 +19,16 @@
 │   │   ├── 00002_categories.sql
 │   │   ├── 00003_products.sql
 │   │   ├── 00004_variants.sql
-│   │   └── 00005_modifiers.sql        # baru (fase 5): modifier_groups, modifiers
+│   │   ├── 00005_modifiers.sql
+│   │   └── 00006_product_modifier_groups.sql   # baru (fase 6)
 │   └── internal/
 │       ├── app/router.go              # rakit router + /healthz (mount auth + catalog)
 │       ├── app/integration_test.go    # e2e auth + RLS (butuh TEST_DATABASE_URL)
 │       ├── app/catalog_integration_test.go   # kategori, otorisasi, isolasi
 │       ├── app/products_integration_test.go  # produk, ETag, pencarian, riwayat harga
 │       ├── app/variants_integration_test.go  # varian ganda, sinkronisasi, default, konversi
-│       ├── app/modifiers_integration_test.go # baru: grup modifier, sinkronisasi opsi, otorisasi
+│       ├── app/modifiers_integration_test.go # grup modifier, sinkronisasi opsi, otorisasi
+│       ├── app/product_modifiers_integration_test.go # baru: penautan, guard hapus, balapan
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
@@ -38,8 +40,8 @@
 │       │                              # interface/http/ (+guard.go)
 │       └── catalog/                   # README.md, module.go,
 │                                      # domain/ (category, product, modifier),
-│                                      # application/ (service, products, modifiers),
-│                                      # infrastructure/pg/ (repository, products, modifiers),
+│                                      # application/ (service, products, modifiers, links),
+│                                      # infrastructure/pg/ (repository, products, modifiers, modifier_links),
 │                                      # interface/http/ (handler, products, modifiers)
 └── web/
     ├── package.json, tsconfig.json, next.config.ts, postcss.config.mjs, vitest.config.mts
@@ -51,7 +53,7 @@
     │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx),
     │                                  # modifiers/ (page.tsx, new/page.tsx, [id]/page.tsx)
     ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx,
-    │                                  # ProductForm.tsx, ModifierGroupForm.tsx
+    │                                  # ProductForm.tsx (+ pemilih grup), ModifierGroupForm.tsx
     └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts,
                                        # modifier.ts, catalog-api.ts (+ *.test.ts)
 ```

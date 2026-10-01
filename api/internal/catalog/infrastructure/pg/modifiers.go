@@ -243,6 +243,13 @@ func (r *Repository) DeleteModifierGroup(ctx context.Context, a application.Acto
 		if err != nil {
 			return fmt.Errorf("kunci grup: %w", err)
 		}
+		used, err := modifierGroupInUse(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if used {
+			return application.ErrModifierGroupInUse
+		}
 		if _, err := tx.Exec(ctx, `UPDATE modifier_groups SET deleted_at = $2, updated_at = $2, updated_by = $3 WHERE id = $1`,
 			id, now, a.UserID); err != nil {
 			return fmt.Errorf("hapus grup: %w", err)

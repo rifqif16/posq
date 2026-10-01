@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/Field";
 import { type Category, buildTree } from "@/lib/category";
+import { type ModifierGroup, selectionLabel } from "@/lib/modifier";
 import {
+  MAX_MODIFIER_GROUPS,
   MAX_VARIANTS,
   type ProductForm,
   type ProductRequest,
@@ -11,6 +14,7 @@ import {
   emptyVariant,
   makeDefault,
   toRequest,
+  toggleId,
   validateForm,
 } from "@/lib/product";
 import type { FieldErrors } from "@/lib/validate";
@@ -23,6 +27,7 @@ export interface SubmitError {
 interface Props {
   initial: ProductForm;
   categories: Category[];
+  modifierGroups: ModifierGroup[];
   submitLabel: string;
   onSubmit: (req: ProductRequest) => Promise<SubmitError | null>;
   onDelete?: () => Promise<string | null>;
@@ -36,6 +41,7 @@ const secondaryButton =
 export function ProductFormView({
   initial,
   categories,
+  modifierGroups,
   submitLabel,
   onSubmit,
   onDelete,
@@ -241,6 +247,68 @@ export function ProductFormView({
           )}
         </div>
       )}
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-stone-700">
+          Grup modifier
+        </legend>
+        {modifierGroups.length === 0 ? (
+          <p className="text-sm text-stone-600">
+            Belum ada grup modifier.{" "}
+            <Link
+              href="/admin/modifiers/new"
+              className="text-amber-800 underline"
+            >
+              Buat grup
+            </Link>
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-stone-600">
+              Urutan pilih = urutan tampil di kasir (maks. {MAX_MODIFIER_GROUPS}
+              ).
+            </p>
+            <ul className="divide-y divide-stone-200 rounded-xl border border-stone-200 bg-white">
+              {modifierGroups.map((g) => {
+                const position = form.modifier_group_ids.indexOf(g.id);
+                return (
+                  <li key={g.id}>
+                    <label className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={position >= 0}
+                        onChange={() =>
+                          set(
+                            "modifier_group_ids",
+                            toggleId(form.modifier_group_ids, g.id),
+                          )
+                        }
+                        className="size-5"
+                      />
+                      <span className="flex-1">
+                        {g.name}
+                        <span className="ml-2 text-stone-500">
+                          {selectionLabel(g.min_select, g.max_select)}
+                        </span>
+                      </span>
+                      {position >= 0 && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">
+                          #{position + 1}
+                        </span>
+                      )}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+        {errors.modifier_group_ids && (
+          <p role="alert" className="text-sm text-red-700">
+            {errors.modifier_group_ids}
+          </p>
+        )}
+      </fieldset>
 
       <fieldset className="flex flex-wrap gap-x-6 gap-y-2">
         <legend className="sr-only">Pengaturan produk</legend>
