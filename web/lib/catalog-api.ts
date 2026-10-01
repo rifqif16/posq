@@ -1,5 +1,6 @@
 import { authedRequest } from "./api";
 import type { Category } from "./category";
+import type { ModifierGroup, ModifierGroupRequest } from "./modifier";
 import type { Product, ProductRequest } from "./product";
 
 export async function listCategories(): Promise<Category[]> {
@@ -75,4 +76,37 @@ export function updateProduct(
 
 export function deleteProduct(id: string): Promise<void> {
   return authedRequest<void>(`/v1/products/${id}`, { method: "DELETE" });
+}
+
+export function listModifierGroups(): Promise<{ items: ModifierGroup[] }> {
+  return authedRequest<{ items: ModifierGroup[] }>("/v1/modifier-groups");
+}
+
+export function getModifierGroup(id: string): Promise<ModifierGroup> {
+  return authedRequest<ModifierGroup>(`/v1/modifier-groups/${id}`);
+}
+
+export function createModifierGroup(
+  input: ModifierGroupRequest,
+): Promise<ModifierGroup> {
+  return authedRequest<ModifierGroup>("/v1/modifier-groups", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateModifierGroup(
+  id: string,
+  version: number,
+  input: ModifierGroupRequest,
+): Promise<ModifierGroup> {
+  return authedRequest<ModifierGroup>(`/v1/modifier-groups/${id}`, {
+    method: "PATCH",
+    headers: { "If-Match": `"${version}"` },
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteModifierGroup(id: string): Promise<void> {
+  return authedRequest<void>(`/v1/modifier-groups/${id}`, { method: "DELETE" });
 }
