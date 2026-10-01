@@ -17,5 +17,6 @@ type Deps struct {
 
 func New(d Deps) *httpapi.Handler {
 	repo := catalogpg.New(d.Pool)
-	return httpapi.NewHandler(application.NewService(repo), application.NewProductService(repo), d.Logger)
+	return httpapi.NewHandler(
+		application.NewService(repo), application.NewProductService(repo), application.NewModifierService(repo), d.Logger)
 }

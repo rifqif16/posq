@@ -7,6 +7,7 @@ import { useSession } from "./SessionProvider";
 const NAV = [
   { href: "/admin", label: "Ringkasan" },
   { href: "/admin/products", label: "Produk" },
+  { href: "/admin/modifiers", label: "Modifier" },
   { href: "/admin/categories", label: "Kategori" },
 ];
 

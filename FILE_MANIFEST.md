@@ -18,13 +18,15 @@
 │   │   ├── 00001_identity.sql
 │   │   ├── 00002_categories.sql
 │   │   ├── 00003_products.sql
-│   │   └── 00004_variants.sql         # baru (fase 4): is_active varian, nama varian unik
+│   │   ├── 00004_variants.sql
+│   │   └── 00005_modifiers.sql        # baru (fase 5): modifier_groups, modifiers
 │   └── internal/
 │       ├── app/router.go              # rakit router + /healthz (mount auth + catalog)
 │       ├── app/integration_test.go    # e2e auth + RLS (butuh TEST_DATABASE_URL)
 │       ├── app/catalog_integration_test.go   # kategori, otorisasi, isolasi
 │       ├── app/products_integration_test.go  # produk, ETag, pencarian, riwayat harga
-│       ├── app/variants_integration_test.go  # baru: varian ganda, sinkronisasi, default, konversi
+│       ├── app/variants_integration_test.go  # varian ganda, sinkronisasi, default, konversi
+│       ├── app/modifiers_integration_test.go # baru: grup modifier, sinkronisasi opsi, otorisasi
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
@@ -34,9 +36,11 @@
 │       ├── auth/                      # README.md, module.go, domain/ (+permission.go),
 │       │                              # application/, infrastructure/ (+pg/),
 │       │                              # interface/http/ (+guard.go)
-│       └── catalog/                   # README.md, module.go, domain/ (category, product),
-│                                      # application/ (service, products), infrastructure/pg/
-│                                      # (repository, products), interface/http/ (handler, products)
+│       └── catalog/                   # README.md, module.go,
+│                                      # domain/ (category, product, modifier),
+│                                      # application/ (service, products, modifiers),
+│                                      # infrastructure/pg/ (repository, products, modifiers),
+│                                      # interface/http/ (handler, products, modifiers)
 └── web/
     ├── package.json, tsconfig.json, next.config.ts, postcss.config.mjs, vitest.config.mts
     ├── app/
@@ -44,9 +48,10 @@
     │   ├── login/, register/
     │   ├── dashboard/page.tsx         # redirect ke /admin
     │   └── admin/                     # layout.tsx, page.tsx, categories/page.tsx,
-    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx)
+    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx),
+    │                                  # modifiers/ (page.tsx, new/page.tsx, [id]/page.tsx)
     ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx,
-    │                                  # ProductForm.tsx (editor varian)
+    │                                  # ProductForm.tsx, ModifierGroupForm.tsx
     └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts,
-                                       # catalog-api.ts (+ *.test.ts)
+                                       # modifier.ts, catalog-api.ts (+ *.test.ts)
 ```
