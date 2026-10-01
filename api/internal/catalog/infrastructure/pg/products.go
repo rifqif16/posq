@@ -167,6 +167,9 @@ func getProduct(ctx context.Context, tx pgx.Tx, id uuid.UUID) (domain.Product, e
 	if err := attachVariants(ctx, tx, list); err != nil {
 		return domain.Product{}, err
 	}
+	if err := attachModifierGroupIDs(ctx, tx, list); err != nil {
+		return domain.Product{}, err
+	}
 	return list[0], nil
 }
 
@@ -208,6 +211,9 @@ func (r *Repository) CreateProduct(ctx context.Context, a application.Actor, np 
 			if err := insertVariant(ctx, tx, a, np.ID, v, i == 0, now); err != nil {
 				return err
 			}
+		}
+		if err := replaceModifierLinks(ctx, tx, a.TenantID, np.ID, in.ModifierGroupIDs); err != nil {
+			return err
 		}
 		var err error
 		out, err = getProduct(ctx, tx, np.ID)
@@ -324,6 +330,9 @@ func applyUpdate(ctx context.Context, tx pgx.Tx, a application.Actor, id uuid.UU
 			return err
 		}
 	}
+	if err := replaceModifierLinks(ctx, tx, a.TenantID, id, in.ModifierGroupIDs); err != nil {
+		return err
+	}
 	updated, err := getProduct(ctx, tx, id)
 	*out = updated
 	return err
@@ -371,6 +380,9 @@ func (r *Repository) DeleteProduct(ctx context.Context, a application.Actor, id 
 			WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id = $1)`, id); err != nil {
 			return fmt.Errorf("hapus barcode: %w", err)
 		}
+		if _, err := tx.Exec(ctx, `DELETE FROM product_modifier_groups WHERE product_id = $1`, id); err != nil {
+			return fmt.Errorf("hapus penautan grup: %w", err)
+		}
 		return nil
 	})
 }
@@ -417,7 +429,10 @@ func (r *Repository) ListProducts(ctx context.Context, tenantID uuid.UUID, f app
 		if n := len(page.Items); n > 0 {
 			page.LastKey = keys[n-1]
 		}
-		return attachVariants(ctx, tx, page.Items)
+		if err := attachVariants(ctx, tx, page.Items); err != nil {
+			return err
+		}
+		return attachModifierGroupIDs(ctx, tx, page.Items)
 	})
 	if page.Items == nil {
 		page.Items = []domain.Product{}

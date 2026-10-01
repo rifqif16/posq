@@ -158,6 +158,8 @@ func (h *Handler) writeModifierError(w http.ResponseWriter, r *http.Request, err
 			httpx.FieldError{Field: fmt.Sprintf("modifiers[%d].id", im.Index), Message: "Opsi tidak ditemukan pada grup ini"})
 	case errors.Is(err, application.ErrModifierGroupNameTaken):
 		httpx.WriteProblem(w, r, http.StatusConflict, "MODIFIER_GROUP_NAME_TAKEN", "Nama grup modifier sudah dipakai")
+	case errors.Is(err, application.ErrModifierGroupInUse):
+		httpx.WriteProblem(w, r, http.StatusConflict, "MODIFIER_GROUP_IN_USE", "Grup masih dipakai produk; lepaskan dari produk terlebih dahulu")
 	case errors.Is(err, application.ErrVersionConflict):
 		httpx.WriteProblem(w, r, http.StatusPreconditionFailed, "VERSION_CONFLICT", "Grup sudah diubah pihak lain, muat ulang data")
 	default:

@@ -32,12 +32,13 @@ type productRequest struct {
 	IsActive       *bool            `json:"is_active"` // default true
 	KitchenStation string           `json:"kitchen_station"`
 	Variants       []variantRequest `json:"variants"`
+	ModifierGroupIDs []uuid.UUID `json:"modifier_group_ids"`
 }
 
 func (p productRequest) toInput() domain.ProductInput {
 	in := domain.ProductInput{
 		Name: p.Name, CategoryID: p.CategoryID, Taxable: true, TrackStock: p.TrackStock,
-		IsActive: true, KitchenStation: p.KitchenStation,
+		IsActive: true, KitchenStation: p.KitchenStation, ModifierGroupIDs: p.ModifierGroupIDs,
 	}
 	if p.Taxable != nil {
 		in.Taxable = *p.Taxable
@@ -79,6 +80,7 @@ type productDTO struct {
 	IsActive       bool         `json:"is_active"`
 	Version        int          `json:"version"`
 	Variants       []variantDTO `json:"variants"`
+	ModifierGroupIDs []uuid.UUID `json:"modifier_group_ids"`
 }
 
 func toProductDTO(p domain.Product, showCost bool) productDTO {
@@ -93,8 +95,15 @@ func toProductDTO(p domain.Product, showCost bool) productDTO {
 	return productDTO{
 		ID: p.ID, Name: p.Name, Type: p.Type, CategoryID: p.CategoryID, Taxable: p.Taxable,
 		TrackStock: p.TrackStock, KitchenStation: p.KitchenStation, IsActive: p.IsActive,
-		Version: p.Version, Variants: variants,
+		Version: p.Version, Variants: variants, ModifierGroupIDs: groupIDs(p.ModifierGroupIDs),
 	}
+}
+
+func groupIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }
 
 func writeProduct(w http.ResponseWriter, r *http.Request, status int, p domain.Product) {
@@ -203,12 +212,17 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) writeProductError(w http.ResponseWriter, r *http.Request, err error) {
 	var iv *application.InvalidVariantError
-	if errors.As(err, &iv) {
+	var ig *application.InvalidModifierGroupError
+	switch {
+	case errors.As(err, &iv):
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "INVALID_VARIANT", "Varian tidak valid",
 			httpx.FieldError{Field: fmt.Sprintf("variants[%d].id", iv.Index), Message: "Varian tidak ditemukan pada produk ini"})
-		return
+	case errors.As(err, &ig):
+		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "INVALID_MODIFIER_GROUP", "Grup modifier tidak valid",
+			httpx.FieldError{Field: fmt.Sprintf("modifier_group_ids[%d]", ig.Index), Message: "Grup modifier tidak ditemukan"})
+	default:
+		h.writeError(w, r, err)
 	}
-	h.writeError(w, r, err)
 }
 
 func parseIfMatch(header string) (int, bool) {

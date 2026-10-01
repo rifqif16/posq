@@ -14,6 +14,7 @@ const (
 	MaxPrice           int64 = 1_000_000_000
 	MaxBarcodes              = 10
 	MaxVariants              = 20
+	MaxModifierGroups        = 10 // grup modifier per produk
 	MaxVariantNameLen        = 50
 	DefaultVariantName       = "Default"
 )
@@ -45,8 +46,9 @@ type Product struct {
 	IsActive       bool
 	Version        int
 	Variants       []Variant
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ModifierGroupIDs []uuid.UUID
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type VariantInput struct {
@@ -68,6 +70,7 @@ type ProductInput struct {
 	IsActive       bool
 	KitchenStation string
 	Variants       []VariantInput
+	ModifierGroupIDs []uuid.UUID
 }
 
 func ProductType(variantCount int) string {
@@ -95,6 +98,7 @@ func (in ProductInput) Validate() (ProductInput, error) {
 	variants, vIssues := validateVariants(in.Variants)
 	in.Variants = variants
 	issues = append(issues, vIssues...)
+	issues = append(issues, validateModifierGroupIDs(in.ModifierGroupIDs)...)
 	if len(issues) > 0 {
 		return in, &ValidationError{Issues: issues}
 	}
@@ -147,6 +151,21 @@ func validateVariants(in []VariantInput) ([]VariantInput, []Issue) {
 		issues = append(issues, Issue{"variants", "Minimal satu varian harus aktif"})
 	}
 	return out, issues
+}
+
+func validateModifierGroupIDs(ids []uuid.UUID) []Issue {
+	if len(ids) > MaxModifierGroups {
+		return []Issue{{"modifier_group_ids", fmt.Sprintf("Maksimal %d grup modifier per produk", MaxModifierGroups)}}
+	}
+	var issues []Issue
+	seen := make(map[uuid.UUID]bool, len(ids))
+	for i, id := range ids {
+		if seen[id] {
+			issues = append(issues, Issue{fmt.Sprintf("modifier_group_ids[%d]", i), "Grup modifier dipilih lebih dari sekali"})
+		}
+		seen[id] = true
+	}
+	return issues
 }
 
 func validateVariant(v VariantInput, path string, single bool) (VariantInput, []Issue) {
