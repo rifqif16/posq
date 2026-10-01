@@ -1,4 +1,3 @@
-// Package catalog adalah composition root modul katalog.
 package catalog
 
 import (
@@ -17,5 +16,6 @@ type Deps struct {
 }
 
 func New(d Deps) *httpapi.Handler {
-	return httpapi.NewHandler(application.NewService(catalogpg.New(d.Pool)), d.Logger)
+	repo := catalogpg.New(d.Pool)
+	return httpapi.NewHandler(application.NewService(repo), application.NewProductService(repo), d.Logger)
 }

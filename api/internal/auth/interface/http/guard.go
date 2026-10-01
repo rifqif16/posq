@@ -16,7 +16,11 @@ func (h *Handler) Require(permission string) func(http.Handler) http.Handler {
 				httpx.WriteProblem(w, r, http.StatusForbidden, "FORBIDDEN", "Anda tidak memiliki izin untuk aksi ini")
 				return
 			}
-			p := authn.Principal{UserID: c.UserID, TenantID: c.TenantID, Role: string(c.Role)}
+			role := c.Role
+			p := authn.Principal{
+				UserID: c.UserID, TenantID: c.TenantID, Role: string(role),
+				Can: func(perm string) bool { return domain.Can(role, perm) },
+			}
 			next.ServeHTTP(w, r.WithContext(authn.With(r.Context(), p)))
 		}))
 	}

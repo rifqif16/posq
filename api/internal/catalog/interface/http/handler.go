@@ -1,4 +1,3 @@
-// Package httpapi (catalog): entrypoint HTTP katalog. Permission dipasang lewat guard yang disuntikkan.
 package httpapi
 
 import (
@@ -16,19 +15,21 @@ import (
 )
 
 const (
-	permProductRead  = "product:read"
-	permProductWrite = "product:write"
+	permProductRead     = "product:read"
+	permProductWrite    = "product:write"
+	permProductCostRead = "product:cost_price_read"
 )
 
 type Guard func(permission string) func(http.Handler) http.Handler
 
 type Handler struct {
-	svc *application.Service
-	log *slog.Logger
+	svc      *application.Service
+	products *application.ProductService
+	log      *slog.Logger
 }
 
-func NewHandler(svc *application.Service, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, log: log}
+func NewHandler(svc *application.Service, products *application.ProductService, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, products: products, log: log}
 }
 
 func (h *Handler) Mount(r chi.Router, require Guard) {
@@ -36,6 +37,12 @@ func (h *Handler) Mount(r chi.Router, require Guard) {
 	r.With(require(permProductWrite)).Post("/categories", h.createCategory)
 	r.With(require(permProductWrite)).Patch("/categories/{id}", h.updateCategory)
 	r.With(require(permProductWrite)).Delete("/categories/{id}", h.deleteCategory)
+
+	r.With(require(permProductRead)).Get("/products", h.listProducts)
+	r.With(require(permProductWrite)).Post("/products", h.createProduct)
+	r.With(require(permProductRead)).Get("/products/{id}", h.getProduct)
+	r.With(require(permProductWrite)).Patch("/products/{id}", h.updateProduct)
+	r.With(require(permProductWrite)).Delete("/products/{id}", h.deleteProduct)
 }
 
 type categoryDTO struct {
@@ -60,8 +67,13 @@ type updateCategoryRequest struct {
 	SortOrder int    `json:"sort_order"`
 }
 
-func actor(r *http.Request) application.Actor {
+func principal(r *http.Request) authn.Principal {
 	p, _ := authn.From(r.Context()) // guard menjamin principal ada
+	return p
+}
+
+func actor(r *http.Request) application.Actor {
+	p := principal(r)
 	return application.Actor{TenantID: p.TenantID, UserID: p.UserID}
 }
 
@@ -140,16 +152,25 @@ func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) 
 			fields[i] = httpx.FieldError{Field: is.Field, Message: is.Message}
 		}
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Data tidak valid", fields...)
-	case errors.Is(err, httpx.ErrBadBody):
-		httpx.WriteProblem(w, r, http.StatusBadRequest, "BAD_REQUEST", "Body permintaan tidak valid")
+	case errors.Is(err, httpx.ErrBadBody), errors.Is(err, application.ErrInvalidCursor):
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "BAD_REQUEST", "Permintaan tidak valid")
 	case errors.Is(err, application.ErrNotFound):
 		httpx.WriteProblem(w, r, http.StatusNotFound, "NOT_FOUND", "Data tidak ditemukan")
 	case errors.Is(err, application.ErrCategoryNameTaken):
 		httpx.WriteProblem(w, r, http.StatusConflict, "CATEGORY_NAME_TAKEN", "Nama kategori sudah dipakai")
 	case errors.Is(err, application.ErrCategoryInUse):
-		httpx.WriteProblem(w, r, http.StatusConflict, "CATEGORY_IN_USE", "Kategori masih memiliki sub-kategori")
+		httpx.WriteProblem(w, r, http.StatusConflict, "CATEGORY_IN_USE", "Kategori masih memiliki sub-kategori atau produk")
 	case errors.Is(err, application.ErrInvalidParent):
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "INVALID_PARENT", "Induk kategori tidak valid (maksimal 2 level)")
+	case errors.Is(err, application.ErrSKUTaken):
+		httpx.WriteProblem(w, r, http.StatusConflict, "SKU_TAKEN", "SKU sudah dipakai produk lain")
+	case errors.Is(err, application.ErrBarcodeTaken):
+		httpx.WriteProblem(w, r, http.StatusConflict, "BARCODE_TAKEN", "Barcode sudah dipakai produk lain")
+	case errors.Is(err, application.ErrInvalidCategory):
+		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "INVALID_CATEGORY", "Kategori tidak valid",
+			httpx.FieldError{Field: "category_id", Message: "Kategori tidak ditemukan"})
+	case errors.Is(err, application.ErrVersionConflict):
+		httpx.WriteProblem(w, r, http.StatusPreconditionFailed, "VERSION_CONFLICT", "Produk sudah diubah pihak lain, muat ulang data")
 	default:
 		h.log.Error("catalog: error tak terduga", "err", err, "path", r.URL.Path)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "INTERNAL", "Terjadi kesalahan pada server")

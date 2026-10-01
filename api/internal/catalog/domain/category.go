@@ -9,27 +9,27 @@ import (
 )
 
 const (
-	MaxNameLen = 100
+	MaxNameLen   = 100
 	MaxSortOrder = 10000
 )
 
 type Category struct {
-	ID uuid.UUID
-	ParentID *uuid.UUID
-	Name string
+	ID        uuid.UUID
+	ParentID  *uuid.UUID
+	Name      string
 	SortOrder int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type Issue struct {
-	Field string
+	Field   string
 	Message string
 }
 
-type ValidationError struct {Issues []Issue}
+type ValidationError struct{ Issues []Issue }
 
-func (e *ValidationError) Error() string {return "validasi gagal"}
+func (e *ValidationError) Error() string { return "validasi gagal" }
 
 func ValidateCategory(name string, sortOrder int) (string, error) {
 	var issues []Issue
