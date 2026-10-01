@@ -11,6 +11,7 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/rifqif16/posq/api/db"
+	"github.com/rifqif16/posq/api/internal/platform/config"
 )
 
 func main() {
@@ -21,6 +22,9 @@ func main() {
 }
 
 func run() error {
+	if _, err := config.LoadDotEnv("."); err != nil {
+		return err
+	}
 	url := os.Getenv("MIGRATE_DATABASE_URL")
 	if url == "" {
 		return fmt.Errorf("MIGRATE_DATABASE_URL wajib diisi")

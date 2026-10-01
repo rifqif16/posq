@@ -1,3 +1,4 @@
+// Package domain (catalog): entitas dan aturan validasi kategori, produk, varian, dan modifier.
 package domain
 
 import (

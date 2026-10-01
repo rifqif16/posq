@@ -84,6 +84,9 @@ func TestProductModifierLinkingCreateGetUpdate(t *testing.T) {
 	}
 	sameIDs(t, idsOf(upd), sugar, topping)
 	res, upd = callH(t, "PATCH", srv.URL+"/v1/products/"+id, updateBody(p, []string{sugar}), owner.token, map[string]string{"If-Match": `"2"`})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("update hapus grup: %d %v", res.StatusCode, upd)
+	}
 	sameIDs(t, idsOf(upd), sugar)
 
 	// field dihilangkan = tanpa grup (PATCH mengganti seluruh field yang dapat diubah)
@@ -213,7 +216,7 @@ func TestProductModifierLinksVisibleToCashierAndIsolated(t *testing.T) {
 func TestModifierLinkVsDeleteRace(t *testing.T) {
 	srv, pool := setup(t)
 	owner := registerTenant(t, srv.URL)
-	for round := 0; round < 15; round++ {
+	for round := range 15 {
 		g := seedGroup(t, srv.URL, owner.token, "G"+string(rune('A'+round)))
 		var wg sync.WaitGroup
 		wg.Add(2)

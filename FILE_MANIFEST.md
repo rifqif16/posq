@@ -10,7 +10,7 @@
 ├── deploy/postgres/init.sql           # role posq_app (tanpa BYPASSRLS)
 ├── docs/adr/0001-auth-session-and-tenant-lookup.md
 ├── api/
-│   ├── go.mod / go.sum
+│   ├── go.mod / go.sum                # module github.com/rifqif16/posq/api
 │   ├── cmd/api/main.go                # entrypoint HTTP
 │   ├── cmd/migrate/main.go            # goose up|down|status
 │   ├── db/embed.go
@@ -20,15 +20,16 @@
 │   │   ├── 00003_products.sql
 │   │   ├── 00004_variants.sql
 │   │   ├── 00005_modifiers.sql
-│   │   └── 00006_product_modifier_groups.sql   # baru (fase 6)
+│   │   └── 00006_product_modifier_groups.sql
 │   └── internal/
 │       ├── app/router.go              # rakit router + /healthz (mount auth + catalog)
 │       ├── app/integration_test.go    # e2e auth + RLS (butuh TEST_DATABASE_URL)
-│       ├── app/catalog_integration_test.go   # kategori, otorisasi, isolasi
-│       ├── app/products_integration_test.go  # produk, ETag, pencarian, riwayat harga
-│       ├── app/variants_integration_test.go  # varian ganda, sinkronisasi, default, konversi
-│       ├── app/modifiers_integration_test.go # grup modifier, sinkronisasi opsi, otorisasi
-│       ├── app/product_modifiers_integration_test.go # baru: penautan, guard hapus, balapan
+│       ├── app/catalog_integration_test.go
+│       ├── app/products_integration_test.go
+│       ├── app/variants_integration_test.go
+│       ├── app/modifiers_integration_test.go
+│       ├── app/product_modifiers_integration_test.go
+│       ├── app/price_history_integration_test.go     # baru: riwayat harga
 │       ├── platform/config/           # env -> Config
 │       ├── platform/database/         # pgx pool, WithTenantTx
 │       ├── platform/httpx/            # problem+json, JSON, middleware
@@ -38,11 +39,11 @@
 │       ├── auth/                      # README.md, module.go, domain/ (+permission.go),
 │       │                              # application/, infrastructure/ (+pg/),
 │       │                              # interface/http/ (+guard.go)
-│       └── catalog/                   # README.md, module.go,
-│                                      # domain/ (category, product, modifier),
-│                                      # application/ (service, products, modifiers, links),
-│                                      # infrastructure/pg/ (repository, products, modifiers, modifier_links),
-│                                      # interface/http/ (handler, products, modifiers)
+│       └── catalog/                   # README.md, module.go (Handlers),
+│                                      # domain/ (category, product, modifier, price_history),
+│                                      # application/ (service, products, modifiers, links, price_history),
+│                                      # infrastructure/pg/ (repository, products, modifiers, modifier_links, price_history),
+│                                      # interface/http/ (handler, products, modifiers, price_history)
 └── web/
     ├── package.json, tsconfig.json, next.config.ts, postcss.config.mjs, vitest.config.mts
     ├── app/
@@ -50,10 +51,10 @@
     │   ├── login/, register/
     │   ├── dashboard/page.tsx         # redirect ke /admin
     │   └── admin/                     # layout.tsx, page.tsx, categories/page.tsx,
-    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx),
+    │                                  # products/ (page.tsx, new/page.tsx, [id]/page.tsx, [id]/history/page.tsx),
     │                                  # modifiers/ (page.tsx, new/page.tsx, [id]/page.tsx)
     ├── components/                    # Field.tsx, SessionProvider.tsx, AdminShell.tsx,
-    │                                  # ProductForm.tsx (+ pemilih grup), ModifierGroupForm.tsx
-    └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts,
-                                       # modifier.ts, catalog-api.ts (+ *.test.ts)
+    │                                  # ProductForm.tsx, ModifierGroupForm.tsx
+    └── lib/                           # api.ts, validate.ts, category.ts, money.ts, product.ts, modifier.ts,
+                                       # catalog-api.ts, price-history.ts, price-history-api.ts (+ *.test.ts)
 ```

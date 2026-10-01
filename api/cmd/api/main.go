@@ -24,6 +24,13 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
+	envFile, err := config.LoadDotEnv(".")
+	if err != nil {
+		return err
+	}
+	if envFile != "" {
+		log.Info("memuat .env", "path", envFile)
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err

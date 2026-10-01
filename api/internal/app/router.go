@@ -1,4 +1,4 @@
-// Package app merangkai router HTTP dari seluruh modul.
+// Package app merangkai router HTTP dan dependensi semua modul.
 package app
 
 import (
@@ -22,7 +22,7 @@ type Deps struct {
 	Pool   *pgxpool.Pool
 	Config config.Config
 	Logger *slog.Logger
-	Hasher application.PasswordHasher // opsional (test)
+	Hasher application.PasswordHasher
 }
 
 func NewRouter(d Deps) (http.Handler, error) {
@@ -30,7 +30,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	catalogHandler := catalog.New(catalog.Deps{Pool: d.Pool, Logger: d.Logger})
+	catalogHandlers := catalog.New(catalog.Deps{Pool: d.Pool, Logger: d.Logger})
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, httpx.RequestLogger(d.Logger), httpx.SecurityHeaders)
@@ -39,7 +39,8 @@ func NewRouter(d Deps) (http.Handler, error) {
 	r.Get("/healthz", healthz(d.Pool))
 	r.Route("/v1", func(r chi.Router) {
 		authHandler.Mount(r)
-		catalogHandler.Mount(r, authHandler.Require)
+		catalogHandlers.Catalog.Mount(r, authHandler.Require)
+		catalogHandlers.PriceHistory.Mount(r, authHandler.Require)
 	})
 	return r, nil
 }

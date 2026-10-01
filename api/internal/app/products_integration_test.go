@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"regexp"
 	"testing"
@@ -45,9 +46,7 @@ func productBody(name, sku string, barcodes []string, cost, sell int, extra map[
 			"sku": sku, "barcodes": barcodes, "cost_price": cost, "sell_price": sell,
 		}},
 	}
-	for k, v := range extra {
-		b[k] = v
-	}
+	maps.Copy(b, extra)
 	return b
 }
 

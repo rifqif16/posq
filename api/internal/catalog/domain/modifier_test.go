@@ -100,7 +100,7 @@ func TestModifierSelectionRule(t *testing.T) {
 func TestModifierCountAndLengthBoundaries(t *testing.T) {
 	make50 := func(n int) ModifierGroupInput {
 		g := ModifierGroupInput{Name: "G", MinSelect: 0, MaxSelect: 1}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			g.Modifiers = append(g.Modifiers, ModifierInput{Name: fmt.Sprintf("O%d", i), IsActive: true})
 		}
 		return g

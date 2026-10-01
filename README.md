@@ -2,7 +2,7 @@
 
 POS SaaS berbasis web untuk F&B. Spesifikasi: `POSQ.md` (sumber kebenaran produk).
 
-Status: **Fase 6**: registrasi/login/refresh/profil (fase 1), permission guard dan kategori (fase 2), produk sederhana (fase 3), produk bervarian (fase 4), grup modifier (fase 5), penautan grup modifier ke produk beserta pemilihnya di form produk (fase 6).
+Status: **7 dari 17 fase selesai**. Sudah ada: registrasi/login/refresh/profil, permission guard, kategori, produk sederhana dan bervarian, grup modifier beserta penautannya ke produk, dan riwayat harga. Shell admin di web: `/admin`, `/admin/products`, `/admin/modifiers`, `/admin/categories`.
 
 ## Prasyarat
 

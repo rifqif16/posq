@@ -36,16 +36,16 @@ type Variant struct {
 }
 
 type Product struct {
-	ID             uuid.UUID
-	Name           string
-	Type           string
-	CategoryID     *uuid.UUID
-	Taxable        bool
-	TrackStock     bool
-	KitchenStation string
-	IsActive       bool
-	Version        int
-	Variants       []Variant
+	ID               uuid.UUID
+	Name             string
+	Type             string
+	CategoryID       *uuid.UUID
+	Taxable          bool
+	TrackStock       bool
+	KitchenStation   string
+	IsActive         bool
+	Version          int
+	Variants         []Variant
 	ModifierGroupIDs []uuid.UUID
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -63,13 +63,13 @@ type VariantInput struct {
 }
 
 type ProductInput struct {
-	Name           string
-	CategoryID     *uuid.UUID
-	Taxable        bool
-	TrackStock     bool
-	IsActive       bool
-	KitchenStation string
-	Variants       []VariantInput
+	Name             string
+	CategoryID       *uuid.UUID
+	Taxable          bool
+	TrackStock       bool
+	IsActive         bool
+	KitchenStation   string
+	Variants         []VariantInput
 	ModifierGroupIDs []uuid.UUID
 }
 
