@@ -22,6 +22,10 @@ var (
 	ErrInvalidCursor   = errors.New("cursor tidak valid")
 )
 
+type InvalidVariantError struct{ Index int }
+
+func (e *InvalidVariantError) Error() string { return "varian tidak dikenal pada produk ini" }
+
 const (
 	defaultPageSize = 50
 	maxPageSize     = 100
@@ -29,9 +33,8 @@ const (
 )
 
 type NewProduct struct {
-	ID        uuid.UUID
-	VariantID uuid.UUID
-	Input     domain.ProductInput
+	ID    uuid.UUID
+	Input domain.ProductInput
 }
 
 type ProductFilter struct {
@@ -71,6 +74,9 @@ func NewProductService(repo ProductRepository) *ProductService {
 }
 
 func (s *ProductService) Create(ctx context.Context, a Actor, in domain.ProductInput) (domain.Product, error) {
+	for i := range in.Variants {
+		in.Variants[i].ID = nil // pada create semua varian baru; id dari klien diabaikan
+	}
 	in, err := in.Validate()
 	if err != nil {
 		return domain.Product{}, err
@@ -79,14 +85,28 @@ func (s *ProductService) Create(ctx context.Context, a Actor, in domain.ProductI
 	if err != nil {
 		return domain.Product{}, fmt.Errorf("buat id: %w", err)
 	}
-	variantID, err := uuid.NewV7()
-	if err != nil {
-		return domain.Product{}, fmt.Errorf("buat id: %w", err)
+	if err := assignNewVariants(in.Variants); err != nil {
+		return domain.Product{}, err
 	}
-	if in.Variants[0].SKU == "" {
-		in.Variants[0].SKU = autoSKU(variantID)
+	return s.repo.CreateProduct(ctx, a, NewProduct{ID: productID, Input: in}, s.now())
+}
+
+func assignNewVariants(variants []domain.VariantInput) error {
+	for i := range variants {
+		v := &variants[i]
+		if v.ID != nil {
+			continue
+		}
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("buat id varian: %w", err)
+		}
+		v.NewID = id
+		if v.SKU == "" {
+			v.SKU = autoSKU(id)
+		}
 	}
-	return s.repo.CreateProduct(ctx, a, NewProduct{ID: productID, VariantID: variantID, Input: in}, s.now())
+	return nil
 }
 
 func autoSKU(id uuid.UUID) string {
@@ -120,6 +140,9 @@ func (s *ProductService) List(ctx context.Context, a Actor, query string, catego
 func (s *ProductService) Update(ctx context.Context, a Actor, id uuid.UUID, version int, in domain.ProductInput) (domain.Product, error) {
 	in, err := in.Validate()
 	if err != nil {
+		return domain.Product{}, err
+	}
+	if err := assignNewVariants(in.Variants); err != nil {
 		return domain.Product{}, err
 	}
 	return s.repo.UpdateProduct(ctx, a, id, version, in, s.now())

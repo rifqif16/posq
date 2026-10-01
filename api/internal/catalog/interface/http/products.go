@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -8,16 +9,19 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rifqif16/posq/api/internal/catalog/application"
 	"github.com/rifqif16/posq/api/internal/catalog/domain"
 	"github.com/rifqif16/posq/api/internal/platform/httpx"
 )
 
 type variantRequest struct {
-	Name      string   `json:"name"`
-	SKU       string   `json:"sku"`
-	Barcodes  []string `json:"barcodes"`
-	CostPrice int64    `json:"cost_price"`
-	SellPrice int64    `json:"sell_price"`
+	ID        *uuid.UUID `json:"id"`        // varian yang sudah ada (PATCH); kosong = varian baru
+	IsActive  *bool      `json:"is_active"` // default true
+	Name      string     `json:"name"`
+	SKU       string     `json:"sku"`
+	Barcodes  []string   `json:"barcodes"`
+	CostPrice int64      `json:"cost_price"`
+	SellPrice int64      `json:"sell_price"`
 }
 
 type productRequest struct {
@@ -42,8 +46,12 @@ func (p productRequest) toInput() domain.ProductInput {
 		in.IsActive = *p.IsActive
 	}
 	for _, v := range p.Variants {
+		active := true
+		if v.IsActive != nil {
+			active = *v.IsActive
+		}
 		in.Variants = append(in.Variants, domain.VariantInput{
-			Name: v.Name, SKU: v.SKU, Barcodes: v.Barcodes, CostPrice: v.CostPrice, SellPrice: v.SellPrice,
+			ID: v.ID, Name: v.Name, SKU: v.SKU, Barcodes: v.Barcodes, CostPrice: v.CostPrice, SellPrice: v.SellPrice, IsActive: active,
 		})
 	}
 	return in
@@ -57,6 +65,7 @@ type variantDTO struct {
 	CostPrice *int64    `json:"cost_price"` // null bila pemanggil tidak punya product:cost_price_read
 	SellPrice int64     `json:"sell_price"`
 	IsDefault bool      `json:"is_default"`
+	IsActive  bool      `json:"is_active"`
 }
 
 type productDTO struct {
@@ -75,7 +84,7 @@ type productDTO struct {
 func toProductDTO(p domain.Product, showCost bool) productDTO {
 	variants := make([]variantDTO, len(p.Variants))
 	for i, v := range p.Variants {
-		variants[i] = variantDTO{ID: v.ID, Name: v.Name, SKU: v.SKU, Barcodes: v.Barcodes, SellPrice: v.SellPrice, IsDefault: v.IsDefault}
+		variants[i] = variantDTO{ID: v.ID, Name: v.Name, SKU: v.SKU, Barcodes: v.Barcodes, SellPrice: v.SellPrice, IsDefault: v.IsDefault, IsActive: v.IsActive}
 		if showCost {
 			cost := v.CostPrice
 			variants[i].CostPrice = &cost
@@ -96,12 +105,12 @@ func writeProduct(w http.ResponseWriter, r *http.Request, status int, p domain.P
 func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	var req productRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	p, err := h.products.Create(r.Context(), actor(r), req.toInput())
 	if err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	writeProduct(w, r, http.StatusCreated, p)
@@ -114,7 +123,7 @@ func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := h.products.Get(r.Context(), actor(r), id)
 	if err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	writeProduct(w, r, http.StatusOK, p)
@@ -132,12 +141,12 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	var req productRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	p, err := h.products.Update(r.Context(), actor(r), id, version, req.toInput())
 	if err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	writeProduct(w, r, http.StatusOK, p)
@@ -149,7 +158,7 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.products.Delete(r.Context(), actor(r), id); err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -177,7 +186,7 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.products.List(r.Context(), actor(r), q.Get("q"), categoryID, limit, q.Get("cursor"))
 	if err != nil {
-		h.writeError(w, r, err)
+		h.writeProductError(w, r, err)
 		return
 	}
 	showCost := principal(r).Has(permProductCostRead)
@@ -190,6 +199,16 @@ func (h *Handler) listProducts(w http.ResponseWriter, r *http.Request) {
 		next = &res.NextCursor
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": next})
+}
+
+func (h *Handler) writeProductError(w http.ResponseWriter, r *http.Request, err error) {
+	var iv *application.InvalidVariantError
+	if errors.As(err, &iv) {
+		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "INVALID_VARIANT", "Varian tidak valid",
+			httpx.FieldError{Field: fmt.Sprintf("variants[%d].id", iv.Index), Message: "Varian tidak ditemukan pada produk ini"})
+		return
+	}
+	h.writeError(w, r, err)
 }
 
 func parseIfMatch(header string) (int, bool) {

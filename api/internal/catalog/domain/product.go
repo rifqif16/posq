@@ -13,6 +13,7 @@ import (
 const (
 	MaxPrice           int64 = 1_000_000_000
 	MaxBarcodes              = 10
+	MaxVariants              = 20
 	MaxVariantNameLen        = 50
 	DefaultVariantName       = "Default"
 )
@@ -30,6 +31,7 @@ type Variant struct {
 	CostPrice int64
 	SellPrice int64
 	IsDefault bool
+	IsActive  bool
 }
 
 type Product struct {
@@ -48,11 +50,14 @@ type Product struct {
 }
 
 type VariantInput struct {
+	ID        *uuid.UUID
+	NewID     uuid.UUID
 	Name      string
-	SKU       string // kosong = dibuat otomatis (create) atau dipertahankan (update)
+	SKU       string // kosong = dibuat otomatis (varian baru) atau dipertahankan (varian lama)
 	Barcodes  []string
 	CostPrice int64
 	SellPrice int64
+	IsActive  bool
 }
 
 type ProductInput struct {
@@ -65,6 +70,13 @@ type ProductInput struct {
 	Variants       []VariantInput
 }
 
+func ProductType(variantCount int) string {
+	if variantCount > 1 {
+		return "variant"
+	}
+	return "simple"
+}
+
 func (in ProductInput) Validate() (ProductInput, error) {
 	var issues []Issue
 	in.Name = strings.TrimSpace(in.Name)
@@ -75,12 +87,13 @@ func (in ProductInput) Validate() (ProductInput, error) {
 	if in.KitchenStation != "" && !stationPattern.MatchString(in.KitchenStation) {
 		issues = append(issues, Issue{"kitchen_station", "Station hanya huruf kecil, angka, - dan _ (maks 30)"})
 	}
-	if len(in.Variants) != 1 {
-		issues = append(issues, Issue{"variants", "Produk sederhana harus memiliki tepat satu varian"})
+	n := len(in.Variants)
+	if n < 1 || n > MaxVariants {
+		issues = append(issues, Issue{"variants", fmt.Sprintf("Produk harus memiliki 1 sampai %d varian", MaxVariants)})
 		return in, &ValidationError{Issues: issues}
 	}
-	v, vIssues := validateVariant(in.Variants[0], "variants[0]")
-	in.Variants = []VariantInput{v}
+	variants, vIssues := validateVariants(in.Variants)
+	in.Variants = variants
 	issues = append(issues, vIssues...)
 	if len(issues) > 0 {
 		return in, &ValidationError{Issues: issues}
@@ -88,15 +101,65 @@ func (in ProductInput) Validate() (ProductInput, error) {
 	return in, nil
 }
 
-func validateVariant(v VariantInput, path string) (VariantInput, []Issue) {
+func validateVariants(in []VariantInput) ([]VariantInput, []Issue) {
+	var issues []Issue
+	out := make([]VariantInput, len(in))
+	names, skus, codes, ids := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[uuid.UUID]bool{}
+	active := 0
+	for i, raw := range in {
+		path := fmt.Sprintf("variants[%d]", i)
+		v, vIssues := validateVariant(raw, path, len(in) == 1)
+		issues = append(issues, vIssues...)
+		if len(in) > 1 && v.Name != "" {
+			if key := strings.ToLower(v.Name); names[key] {
+				issues = append(issues, Issue{path + ".name", "Nama varian harus unik"})
+			} else {
+				names[key] = true
+			}
+		}
+		if key := strings.ToLower(v.SKU); v.SKU != "" {
+			if skus[key] {
+				issues = append(issues, Issue{path + ".sku", "SKU dipakai varian lain pada produk ini"})
+			}
+			skus[key] = true
+		}
+		for _, b := range v.Barcodes {
+			if codes[b] {
+				issues = append(issues, Issue{path + ".barcodes", "Barcode dipakai varian lain pada produk ini"})
+				break
+			}
+		}
+		for _, b := range v.Barcodes {
+			codes[b] = true
+		}
+		if v.ID != nil {
+			if ids[*v.ID] {
+				issues = append(issues, Issue{path + ".id", "Varian dikirim lebih dari sekali"})
+			}
+			ids[*v.ID] = true
+		}
+		if v.IsActive {
+			active++
+		}
+		out[i] = v
+	}
+	if active == 0 {
+		issues = append(issues, Issue{"variants", "Minimal satu varian harus aktif"})
+	}
+	return out, issues
+}
+
+func validateVariant(v VariantInput, path string, single bool) (VariantInput, []Issue) {
 	var issues []Issue
 	field := func(name string) string { return path + "." + name }
 
 	v.Name = strings.TrimSpace(v.Name)
-	if v.Name == "" {
+	switch {
+	case v.Name == "" && single:
 		v.Name = DefaultVariantName
-	}
-	if utf8.RuneCountInString(v.Name) > MaxVariantNameLen {
+	case v.Name == "":
+		issues = append(issues, Issue{field("name"), "Nama varian wajib diisi"})
+	case utf8.RuneCountInString(v.Name) > MaxVariantNameLen:
 		issues = append(issues, Issue{field("name"), "Nama varian maks 50 karakter"})
 	}
 	v.SKU = strings.TrimSpace(v.SKU)
