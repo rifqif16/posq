@@ -1,4 +1,3 @@
-// Package app merangkai router HTTP dan dependensi semua modul.
 package app
 
 import (
@@ -41,6 +40,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 		authHandler.Mount(r)
 		catalogHandlers.Catalog.Mount(r, authHandler.Require)
 		catalogHandlers.PriceHistory.Mount(r, authHandler.Require)
+		catalogHandlers.ProductCSV.Mount(r, authHandler.Require)
 	})
 	return r, nil
 }
