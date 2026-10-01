@@ -15,8 +15,16 @@ type Deps struct {
 	Logger *slog.Logger
 }
 
-func New(d Deps) *httpapi.Handler {
+type Handlers struct {
+	Catalog      *httpapi.Handler
+	PriceHistory *httpapi.PriceHistoryHandler
+}
+
+func New(d Deps) Handlers {
 	repo := catalogpg.New(d.Pool)
-	return httpapi.NewHandler(
-		application.NewService(repo), application.NewProductService(repo), application.NewModifierService(repo), d.Logger)
+	return Handlers{
+		Catalog: httpapi.NewHandler(
+			application.NewService(repo), application.NewProductService(repo), application.NewModifierService(repo), d.Logger),
+		PriceHistory: httpapi.NewPriceHistoryHandler(application.NewPriceHistoryService(repo), d.Logger),
+	}
 }
