@@ -7,6 +7,7 @@ import { useSession } from "./SessionProvider";
 const NAV = [
   { href: "/admin", label: "Ringkasan" },
   { href: "/admin/products", label: "Produk" },
+  { href: "/admin/inventory", label: "Stok" },
   { href: "/admin/modifiers", label: "Modifier" },
   { href: "/admin/categories", label: "Kategori" },
 ];
@@ -24,19 +25,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {profile.user.name} · {profile.user.role}
           </p>
         </div>
-        <button
-          onClick={logout}
-          className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-sm hover:bg-stone-100"
-        >
+        <button onClick={logout} className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-sm hover:bg-stone-100">
           Keluar
         </button>
       </header>
       <nav aria-label="Menu admin" className="flex gap-2 py-3">
         {NAV.map((item) => {
-          const active =
-            item.href === "/admin"
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
+          const active = item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

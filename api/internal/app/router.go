@@ -13,6 +13,7 @@ import (
 	"github.com/rifqif16/posq/api/internal/auth"
 	"github.com/rifqif16/posq/api/internal/auth/application"
 	"github.com/rifqif16/posq/api/internal/catalog"
+	"github.com/rifqif16/posq/api/internal/inventory"
 	"github.com/rifqif16/posq/api/internal/platform/config"
 	"github.com/rifqif16/posq/api/internal/platform/httpx"
 )
@@ -30,6 +31,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 		return nil, err
 	}
 	catalogHandlers := catalog.New(catalog.Deps{Pool: d.Pool, Logger: d.Logger})
+	inventoryHandler := inventory.New(inventory.Deps{Pool: d.Pool, Logger: d.Logger})
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, httpx.RequestLogger(d.Logger), httpx.SecurityHeaders)
@@ -41,6 +43,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 		catalogHandlers.Catalog.Mount(r, authHandler.Require)
 		catalogHandlers.PriceHistory.Mount(r, authHandler.Require)
 		catalogHandlers.ProductCSV.Mount(r, authHandler.Require)
+		inventoryHandler.Mount(r, authHandler.Require)
 	})
 	return r, nil
 }
