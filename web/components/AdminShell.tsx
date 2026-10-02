@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/modifiers", label: "Modifier" },
   { href: "/admin/categories", label: "Kategori" },
   { href: "/admin/staff", label: "Staf" },
+  { href: "/admin/devices", label: "Perangkat" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -33,7 +34,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           Keluar
         </button>
       </header>
-      <nav aria-label="Menu admin" className="flex gap-2 py-3">
+      <nav aria-label="Menu admin" className="flex flex-wrap gap-2 py-3">
         {NAV.map((item) => {
           const active =
             item.href === "/admin"

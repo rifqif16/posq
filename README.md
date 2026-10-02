@@ -2,7 +2,7 @@
 
 POS SaaS berbasis web untuk F&B. Spesifikasi: `POSQ.md` (sumber kebenaran produk).
 
-Status: **10 dari 17 fase selesai**. Sudah ada: registrasi/login/refresh/profil, permission guard, manajemen staf (akun, role, outlet, password, PIN), kategori, produk sederhana dan bervarian, grup modifier beserta penautannya ke produk, riwayat harga, ekspor/impor CSV produk, serta inventory dasar (ledger stok, saldo, stok masuk/rusak/koreksi, hitung fisik, riwayat). Shell admin di web: `/admin`, `/admin/products` (termasuk `/import` dan riwayat harga), `/admin/inventory` (termasuk `/movements`), `/admin/modifiers`, `/admin/categories`, `/admin/staff`.
+Status: **11 dari 17 fase selesai**. Sudah ada: registrasi/login/refresh/profil, permission guard, manajemen staf, registrasi perangkat dan login PIN kasir, kategori, produk sederhana dan bervarian, grup modifier beserta penautannya ke produk, riwayat harga, ekspor/impor CSV produk, serta inventory dasar (ledger stok, saldo, stok masuk/rusak/koreksi, hitung fisik, riwayat). Shell admin di web: `/admin`, `/admin/products` (termasuk `/import` dan riwayat harga), `/admin/inventory` (termasuk `/movements`), `/admin/modifiers`, `/admin/categories`, `/admin/staff`, `/admin/devices`. Untuk kasir: `/kasir/masuk` (login PIN) dan `/kasir` (placeholder).
 
 ## Prasyarat
 
@@ -21,7 +21,7 @@ cd api && go run ./cmd/api
 cd web && pnpm install && pnpm dev
 ```
 
-Buka <http://localhost:3000/register>, lalu <http://localhost:3000/admin/products>, <http://localhost:3000/admin/inventory>, atau <http://localhost:3000/admin/staff>. Untuk mencoba stok, aktifkan "Lacak stok" pada sebuah produk.
+Buka <http://localhost:3000/register>, lalu <http://localhost:3000/admin/products> atau <http://localhost:3000/admin/staff>. Untuk mencoba login PIN: buat kasir ber-PIN di Staf, daftarkan perangkat di Perangkat lalu klik "Pasang di perangkat ini", kemudian buka <http://localhost:3000/kasir/masuk>. Untuk mencoba stok, aktifkan "Lacak stok" pada sebuah produk.
 
 ## Test
 

@@ -143,6 +143,43 @@ export async function authedDownload(
   return { blob: await res.blob(), filename: match?.[1] ?? "produk.csv" };
 }
 
+export interface DeviceCredentials {
+  device_id: string;
+  device_secret: string;
+}
+
+export interface PinUser {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface PinUsersResponse {
+  device_name: string;
+  store_id: string;
+  items: PinUser[];
+}
+
+export function fetchPinUsers(c: DeviceCredentials): Promise<PinUsersResponse> {
+  return request<PinUsersResponse>("/v1/auth/pin-users", {
+    method: "POST",
+    body: JSON.stringify(c),
+  });
+}
+
+export async function pinLogin(
+  c: DeviceCredentials,
+  userId: string,
+  pin: string,
+): Promise<Profile> {
+  return adopt(
+    await request<SessionResponse>("/v1/auth/pin-login", {
+      method: "POST",
+      body: JSON.stringify({ ...c, user_id: userId, pin }),
+    }),
+  );
+}
+
 export async function logout(): Promise<void> {
   try {
     await request<void>("/v1/auth/logout", { method: "POST" });

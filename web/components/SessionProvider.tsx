@@ -23,7 +23,13 @@ type State =
   | { kind: "ready"; profile: Profile }
   | { kind: "error" };
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({
+  children,
+  loginPath = "/login",
+}: {
+  children: React.ReactNode;
+  loginPath?: string;
+}) {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: "loading" });
 
@@ -33,17 +39,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .then((profile) => {
         if (cancelled) return;
         if (profile) setState({ kind: "ready", profile });
-        else router.replace("/login");
+        else router.replace(loginPath);
       })
       .catch(() => !cancelled && setState({ kind: "error" }));
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, loginPath]);
 
   async function logout() {
     await apiLogout().catch(() => undefined);
-    router.replace("/login");
+    router.replace(loginPath);
   }
 
   if (state.kind === "loading")
