@@ -30,6 +30,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	staffHandler := auth.NewStaff(auth.Deps{Pool: d.Pool, Config: d.Config, Logger: d.Logger, Hasher: d.Hasher})
 	catalogHandlers := catalog.New(catalog.Deps{Pool: d.Pool, Logger: d.Logger})
 	inventoryHandler := inventory.New(inventory.Deps{Pool: d.Pool, Logger: d.Logger})
 
@@ -40,6 +41,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 	r.Get("/healthz", healthz(d.Pool))
 	r.Route("/v1", func(r chi.Router) {
 		authHandler.Mount(r)
+		staffHandler.Mount(r, authHandler.Require)
 		catalogHandlers.Catalog.Mount(r, authHandler.Require)
 		catalogHandlers.PriceHistory.Mount(r, authHandler.Require)
 		catalogHandlers.ProductCSV.Mount(r, authHandler.Require)
